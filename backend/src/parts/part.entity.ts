@@ -1,18 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { Category } from '../categories/category.entity';
+
 @Entity('parts')
 export class Part {
   @PrimaryGeneratedColumn() id: number;
+
+  @Index()
   @Column() name: string;
-  @Column({ nullable: true }) partNumber: string;
-  @Column({ default: 'good', comment: 'good | fair | poor' }) condition: string;
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true }) price: number;
-  @Column({ default: 'available', comment: 'available | reserved | sold' }) status: string;
-  @Column({ nullable: true }) notes: string;
-  @ManyToOne(() => Vehicle, v => v.parts, { onDelete: 'SET NULL', nullable: true }) @JoinColumn() vehicle: Vehicle;
-  @Column({ nullable: true }) vehicleId: number;
-  @ManyToOne(() => Category, c => c.parts, { nullable: true }) @JoinColumn() category: Category;
-  @Column({ nullable: true }) categoryId: number;
+
+  @Column({ nullable: true }) partNumber?: string;
+
+  @Column({ default: 'good' }) condition: string;   // good | fair | poor
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true }) price?: number;
+
+  @Index()
+  @Column({ default: 'available' }) status: string; // available | reserved | sold
+
+  @Column({ nullable: true }) notes?: string;
+
+  @Index()
+  @Column({ nullable: true }) vehicleId?: number;
+
+  @Index()
+  @Column({ nullable: true }) categoryId?: number;
+
+  @ManyToOne(() => Vehicle, v => v.parts, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'vehicleId' })
+  vehicle?: Vehicle;
+
+  @ManyToOne(() => Category, c => c.parts, { nullable: true })
+  @JoinColumn({ name: 'categoryId' })
+  category?: Category;
+
   @CreateDateColumn() createdAt: Date;
 }

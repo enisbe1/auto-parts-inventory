@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
+
 class CreateVehicleDto {
   @IsOptional() @IsNumber() @Type(() => Number) variantId?: number;
   @IsOptional() @IsString() vin?: string;
@@ -12,12 +13,28 @@ class CreateVehicleDto {
   @IsOptional() @IsString() purchaseDate?: string;
   @IsOptional() @IsString() notes?: string;
 }
+
 @Controller('vehicles')
 export class VehiclesController {
   constructor(private svc: VehiclesService) {}
-  @Get() findAll() { return this.svc.findAll(); }
+
+  @Get()
+  findAll(
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page')   page?: string,
+    @Query('limit')  limit?: string,
+  ) {
+    return this.svc.findAll({
+      status,
+      search,
+      page:  page  ? +page  : 1,
+      limit: limit ? +limit : 20,
+    });
+  }
+
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(+id); }
-  @UseGuards(JwtAuthGuard) @Post() create(@Body() dto: CreateVehicleDto) { return this.svc.create(dto); }
-  @UseGuards(JwtAuthGuard) @Patch(':id') update(@Param('id') id: string, @Body() dto: CreateVehicleDto) { return this.svc.update(+id, dto); }
+  @UseGuards(JwtAuthGuard) @Post()        create(@Body() dto: CreateVehicleDto) { return this.svc.create(dto); }
+  @UseGuards(JwtAuthGuard) @Patch(':id')  update(@Param('id') id: string, @Body() dto: CreateVehicleDto) { return this.svc.update(+id, dto); }
   @UseGuards(JwtAuthGuard) @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(+id); }
 }
