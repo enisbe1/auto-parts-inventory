@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { Part } from "@/lib/types";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -13,29 +13,44 @@ interface PaginatedParts {
 }
 
 function PartsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [result, setResult]     = useState<PaginatedParts | null>(null);
   const [page, setPage]         = useState(1);
-  const [search, setSearch]     = useState(searchParams.get("search") || "");
-  const [status, setStatus]     = useState(searchParams.get("status") || "");
+  const initialSearch           = searchParams.get("search") || "";
+  const initialStatus           = searchParams.get("status") || "";
+  const [search, setSearch]     = useState(initialSearch);
+  const [status, setStatus]     = useState(initialStatus);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch);
+  const [appliedStatus, setAppliedStatus] = useState(initialStatus);
   const [toDelete, setToDelete] = useState<Part | null>(null);
   const [toast, setToast]       = useState<{ message: string; type: "success" | "error" } | null>(null);
   const limit = 20;
 
   const load = async (p: number) => {
     const params: Record<string, string | number> = { page: p, limit };
-    if (search) params.search = search;
-    if (status) params.status = status;
+    if (appliedSearch) params.search = appliedSearch;
+    if (appliedStatus) params.status = appliedStatus;
     const { data } = await api.get("/parts", { params });
     setResult(data);
   };
 
-  useEffect(() => { load(page); }, [page]);
+  useEffect(() => {
+    let active = true;
+    const params: Record<string, string | number> = { page, limit };
+    if (appliedSearch) params.search = appliedSearch;
+    if (appliedStatus) params.status = appliedStatus;
+    api.get("/parts", { params }).then(({ data }) => {
+      if (active) setResult(data);
+    });
+    return () => { active = false; };
+  }, [page, appliedSearch, appliedStatus]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setAppliedSearch(search);
+    setAppliedStatus(status);
     setPage(1);
-    load(1);
   };
 
   const confirmDelete = async () => {
@@ -49,6 +64,46 @@ function PartsContent() {
     } finally {
       setToDelete(null);
     }
+  };
+
+  const exportCSV = async () => {
+    // Fetch all matching parts (no pagination limit)
+    const params: Record<string, string | number> = { page: 1, limit: 10000 };
+    if (search) params.search = search;
+    if (status) params.status = status;
+    const { data } = await api.get("/parts", { params });
+    const parts: Part[] = data.data;
+
+    const headers = ["ID", "Name", "Part Number", "Category", "Vehicle", "Condition", "Price (EUR)", "Status", "Notes", "Created At"];
+    const rows = parts.map(p => {
+      const v = p.vehicle;
+      const va = v?.variant;
+      const vehicleLabel = va
+        ? [va.generation?.model?.make?.name, va.generation?.model?.name, va.generation?.code, va.name].filter(Boolean).join(" ")
+        : (v ? `Vehicle #${v.id}` : "");
+      return [
+        p.id,
+        `"${p.name}"`,
+        p.partNumber || "",
+        p.category?.name || "",
+        vehicleLabel,
+        p.condition,
+        p.price ?? "",
+        p.status,
+        `"${(p.notes || "").replace(/"/g, "'")}"`,
+        p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "",
+      ].join(",");
+    });
+
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `parts-export-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: `Exported ${parts.length} parts to CSV`, type: "success" });
   };
 
   const vehicleLabel = (p: Part) => {
@@ -82,9 +137,15 @@ function PartsContent() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Parts Inventory</h1>
-        <Link href="/parts/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          + Add Part
-        </Link>
+        <div className="flex gap-2">
+          <button onClick={exportCSV}
+            className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 font-medium">
+            ↓ Export CSV
+          </button>
+          <Link href="/parts/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            + Add Part
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -141,7 +202,10 @@ function PartsContent() {
                   }`}>{p.status}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => setToDelete(p)} className="text-red-500 hover:underline text-xs">Delete</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => router.push(`/parts/${p.id}/edit`)} className="text-blue-600 hover:underline text-xs">Edit</button>
+                    <button onClick={() => setToDelete(p)} className="text-red-500 hover:underline text-xs">Delete</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -149,7 +213,6 @@ function PartsContent() {
         </table>
       </div>
 
-      {/* Pagination */}
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
           <span>{meta.total} parts — page {meta.page} of {meta.totalPages}</span>

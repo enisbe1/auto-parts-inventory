@@ -1,26 +1,42 @@
-'use client';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+"use client";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+
+const links = [
+  { href: "/dashboard",   label: "Dashboard" },
+  { href: "/vehicles",    label: "Vehicles" },
+  { href: "/parts",       label: "Parts" },
+  { href: "/categories",  label: "Categories" },
+  { href: "/search",      label: "Search" },
+];
 
 export default function Navbar() {
-  const path = usePathname();
-  const router = useRouter();
-  const links = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/vehicles', label: 'Vehicles' },
-    { href: '/parts', label: 'Parts' },
-    { href: '/search', label: 'Search' },
-  ];
-  const logout = () => { localStorage.removeItem('token'); router.push('/login'); };
+  const pathname = usePathname();
+  const router   = useRouter();
+
+  const logout = () => {
+    localStorage.removeItem("access_token");
+    router.push("/login");
+  };
+
   return (
-    <nav className="bg-blue-700 text-white px-6 py-3 flex items-center justify-between shadow">
-      <span className="font-bold text-lg tracking-wide">🔧 AutoParts</span>
-      <div className="flex gap-6 items-center">
+    <nav className="bg-gray-900 text-white px-6 py-3 flex items-center justify-between shadow-lg">
+      <div className="flex items-center gap-1">
+        <span className="text-blue-400 font-bold text-lg mr-4">AutoParts</span>
         {links.map(l => (
-          <Link key={l.href} href={l.href} className={`hover:text-blue-200 transition ${path.startsWith(l.href) ? 'font-bold underline' : ''}`}>{l.label}</Link>
+          <Link key={l.href} href={l.href}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              pathname.startsWith(l.href)
+                ? "bg-blue-600 text-white"
+                : "text-gray-300 hover:bg-gray-700 hover:text-white"
+            }`}>
+            {l.label}
+          </Link>
         ))}
-        <button onClick={logout} className="bg-white text-blue-700 px-3 py-1 rounded text-sm font-semibold hover:bg-blue-100 transition">Logout</button>
       </div>
+      <button onClick={logout} className="text-gray-400 hover:text-white text-sm">
+        Log out
+      </button>
     </nav>
   );
 }
