@@ -3,11 +3,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const links = [
-  { href: "/dashboard",   label: "Dashboard" },
-  { href: "/vehicles",    label: "Vehicles" },
-  { href: "/parts",       label: "Parts" },
-  { href: "/categories",  label: "Categories" },
-  { href: "/search",      label: "Search" },
+  { href: "/dashboard",  label: "Dashboard" },
+  { href: "/vehicles",   label: "Vehicles" },
+  { href: "/parts",      label: "Parts" },
+  { href: "/categories", label: "Categories" },
+  { href: "/catalogue",  label: "Catalogue" },
+  { href: "/search",     label: "Search" },
 ];
 
 export default function Navbar() {
