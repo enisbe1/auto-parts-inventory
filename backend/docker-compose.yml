@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: yourpassword
       POSTGRES_DB: auto_parts_db
     ports:
-      - '5432:5432'
+      - '5437:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
