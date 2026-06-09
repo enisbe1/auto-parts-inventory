@@ -9,6 +9,8 @@ import { CarModel } from './models/car-model.entity';
 import { Generation } from './generations/generation.entity';
 import { Variant } from './variants/variant.entity';
 import { Category } from './categories/category.entity';
+import { User } from './users/user.entity';
+import * as bcrypt from 'bcryptjs';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -17,7 +19,7 @@ const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME     || 'auto_parts',
-  entities: [Make, CarModel, Generation, Variant, Category],
+  entities: [Make, CarModel, Generation, Variant, Category, User],
   synchronize: false,
 });
 
@@ -198,6 +200,18 @@ async function seed() {
     }
   }
   console.log('Variants seeded');
+
+  // ── Default user ──────────────────────────────────────────────────────────
+  const userRepo = AppDataSource.getRepository(User);
+  const defaultEmail = 'admin@autoparts.com';
+  const existingUser = await userRepo.findOne({ where: { email: defaultEmail } });
+  if (!existingUser) {
+    const hash = await bcrypt.hash('admin123', 10);
+    await userRepo.save(userRepo.create({ email: defaultEmail, password: hash, role: 'operator' }));
+    console.log('Default user seeded: admin@autoparts.com / admin123');
+  } else {
+    console.log('Default user already exists, skipping');
+  }
 
   await AppDataSource.destroy();
   console.log('\nSeed complete! Your database now has:');
