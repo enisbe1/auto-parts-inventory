@@ -1,20 +1,34 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { Part } from "@/lib/types";
 import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PaginatedParts {
   data: Part[];
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
+const statusBadge = (status: string) => {
+  if (status === "available") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+  if (status === "reserved")  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-500/15 text-zinc-400 border border-zinc-500/20";
+};
+
+const conditionBadge = (c: string) => {
+  if (c === "good") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+  if (c === "fair") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20";
+};
+
 function PartsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLanguage();
   const [result, setResult]         = useState<PaginatedParts | null>(null);
   const [page, setPage]             = useState(1);
   const [search, setSearch]         = useState(searchParams.get("search") || "");
@@ -27,40 +41,43 @@ function PartsContent() {
   const [bulkLoading, setBulkLoad]  = useState(false);
   const limit = 20;
 
+  // Keep a ref to the latest search/status so pagination always uses current filters
+  const filtersRef = useRef({ search, status });
+  useEffect(() => { filtersRef.current = { search, status }; }, [search, status]);
+
   const load = async (p: number) => {
+    const { search: s, status: st } = filtersRef.current;
     const params: Record<string, string | number> = { page: p, limit };
-    if (search) params.search = search;
-    if (status) params.status = status;
+    if (s)  params.search = s;
+    if (st) params.status = st;
     const { data } = await api.get("/parts", { params });
     setResult(data);
     setSelected(new Set());
   };
 
-  useEffect(() => { load(page); }, [page]);
+  useEffect(() => { load(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault(); setPage(1); load(1);
   };
 
-  // ── Selection ─────────────────────────────────────────────────────────────
-  const toggleOne = (id: number) => setSelected(prev => {
+  const toggleOne = (id: number) => setSelected((prev) => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
 
   const toggleAll = () => {
-    const ids = (result?.data ?? []).map(p => p.id);
+    const ids = (result?.data ?? []).map((p) => p.id);
     if (selected.size === ids.length) setSelected(new Set());
     else setSelected(new Set(ids));
   };
 
-  // ── Bulk status update ────────────────────────────────────────────────────
   const bulkUpdateStatus = async () => {
     if (selected.size === 0) return;
     setBulkLoad(true);
     try {
-      await Promise.all([...selected].map(id => api.patch(`/parts/${id}`, { status: bulkStatus })));
+      await Promise.all([...selected].map((id) => api.patch(`/parts/${id}`, { status: bulkStatus })));
       setToast({ message: `${selected.size} parts marked as ${bulkStatus}`, type: "success" });
       load(page);
     } catch {
@@ -68,11 +85,10 @@ function PartsContent() {
     } finally { setBulkLoad(false); }
   };
 
-  // ── Bulk delete ───────────────────────────────────────────────────────────
   const bulkDelete = async () => {
     setBulkLoad(true);
     try {
-      await Promise.all([...selected].map(id => api.delete(`/parts/${id}`)));
+      await Promise.all([...selected].map((id) => api.delete(`/parts/${id}`)));
       setToast({ message: `${selected.size} parts deleted`, type: "success" });
       load(page);
     } catch {
@@ -80,19 +96,17 @@ function PartsContent() {
     } finally { setBulkLoad(false); setBulkDel(false); }
   };
 
-  // ── Single delete ─────────────────────────────────────────────────────────
   const confirmDelete = async () => {
     if (!toDelete) return;
     try {
       await api.delete(`/parts/${toDelete.id}`);
-      setToast({ message: `Part "${toDelete.name}" deleted`, type: "success" });
+      setToast({ message: `Part deleted`, type: "success" });
       load(page);
     } catch {
       setToast({ message: "Failed to delete part", type: "error" });
     } finally { setToDelete(null); }
   };
 
-  // ── CSV export ────────────────────────────────────────────────────────────
   const exportCSV = async () => {
     const params: Record<string, string | number> = { page: 1, limit: 10000 };
     if (search) params.search = search;
@@ -100,7 +114,7 @@ function PartsContent() {
     const { data } = await api.get("/parts", { params });
     const parts: Part[] = data.data;
     const headers = ["ID","Name","Part Number","Category","Vehicle","Condition","Price (EUR)","Status","Notes","Created At"];
-    const rows = parts.map(p => {
+    const rows = parts.map((p) => {
       const v = p.vehicle; const va = v?.variant;
       const vLabel = va
         ? [va.generation?.model?.make?.name, va.generation?.model?.name, va.generation?.code, va.name].filter(Boolean).join(" ")
@@ -113,7 +127,7 @@ function PartsContent() {
     const a = document.createElement("a");
     a.href = url; a.download = `parts-export-${new Date().toISOString().split("T")[0]}.csv`; a.click();
     URL.revokeObjectURL(url);
-    setToast({ message: `Exported ${parts.length} parts to CSV`, type: "success" });
+    setToast({ message: `Exported ${parts.length} parts`, type: "success" });
   };
 
   const vehicleLabel = (p: Part) => {
@@ -122,123 +136,190 @@ function PartsContent() {
     return [mk?.name, m?.name, g?.code, va?.name].filter(Boolean).join(" ") || `Vehicle #${v.id}`;
   };
 
-  const conditionColor = (c: string) =>
-    c === "good" ? "bg-green-100 text-green-700" : c === "fair" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700";
-
   const parts  = result?.data ?? [];
   const meta   = result?.meta;
   const allSel = parts.length > 0 && selected.size === parts.length;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {toDelete && <ConfirmModal message={`Delete part "${toDelete.name}"?`} onConfirm={confirmDelete} onCancel={() => setToDelete(null)} />}
       {bulkDelConfirm && (
         <ConfirmModal
-          message={`Delete ${selected.size} selected parts? This cannot be undone.`}
+          message={`Delete ${selected.size} selected parts? ${t.parts.deleteConfirm}`}
           onConfirm={bulkDelete}
           onCancel={() => setBulkDel(false)}
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Parts Inventory</h1>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 font-medium">
-            ↓ Export CSV
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100">{t.parts.title}</h1>
+          <p className="text-zinc-400 text-sm mt-1">
+            {meta ? t.parts.partsTotal(meta.total) : t.common.loading}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            className="inline-flex items-center gap-2 bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {t.common.export}
           </button>
-          <Link href="/parts/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-            + Add Part
+          <Link
+            href="/parts/new"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {t.parts.addPart}
           </Link>
         </div>
       </div>
 
       {/* Filters */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search parts…"
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <select value={status} onChange={e => setStatus(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
-          <option value="">All statuses</option>
-          <option value="available">Available</option>
-          <option value="reserved">Reserved</option>
-          <option value="sold">Sold</option>
+      <form onSubmit={handleSearch} className="flex gap-2 mb-5">
+        <div className="relative flex-1 max-w-sm">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.parts.searchParts}
+            className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+          />
+        </div>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="bg-[#18181b] border border-[#27272a] text-zinc-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+        >
+          <option value="">{t.common.allStatuses}</option>
+          <option value="available">{t.status.available}</option>
+          <option value="reserved">{t.status.reserved}</option>
+          <option value="sold">{t.status.sold}</option>
         </select>
-        <button type="submit" className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700">Filter</button>
+        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          {t.common.filter}
+        </button>
       </form>
 
       {/* Bulk action toolbar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 mb-4 text-sm">
-          <span className="font-medium text-blue-700">{selected.size} selected</span>
+        <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 mb-4 text-sm">
+          <span className="font-semibold text-blue-400">{selected.size} {t.common.selected}</span>
           <div className="flex items-center gap-2 ml-auto">
-            <span className="text-gray-500">Mark as:</span>
-            <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none">
-              <option value="available">Available</option>
-              <option value="reserved">Reserved</option>
-              <option value="sold">Sold</option>
+            <span className="text-zinc-500 text-xs">{t.common.markAs}</span>
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              className="bg-[#18181b] border border-[#27272a] text-zinc-100 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+            >
+              <option value="available">{t.status.available}</option>
+              <option value="reserved">{t.status.reserved}</option>
+              <option value="sold">{t.status.sold}</option>
             </select>
-            <button onClick={bulkUpdateStatus} disabled={bulkLoading}
-              className="bg-blue-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-              {bulkLoading ? "Updating…" : "Apply"}
+            <button
+              onClick={bulkUpdateStatus}
+              disabled={bulkLoading}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {bulkLoading ? t.common.loading : t.common.apply}
             </button>
-            <button onClick={() => setBulkDel(true)} disabled={bulkLoading}
-              className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-lg text-sm hover:bg-red-100 disabled:opacity-50">
-              Delete selected
+            <button
+              onClick={() => setBulkDel(true)}
+              disabled={bulkLoading}
+              className="bg-[#18181b] text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+            >
+              {t.common.delete}
             </button>
-            <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-gray-600 text-xs">✕ Clear</button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors ml-1"
+            >
+              ✕ {t.common.cancel}
+            </button>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
+      {/* Table */}
+      <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden shadow-xl shadow-black/20">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-4 py-3 w-8">
-                <input type="checkbox" checked={allSel} onChange={toggleAll}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+          <thead>
+            <tr className="bg-[#0f0f12] border-b border-[#27272a]">
+              <th className="px-5 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSel}
+                  onChange={toggleAll}
+                  className="rounded border-zinc-700 text-blue-600 focus:ring-blue-500/40 bg-[#18181b]"
+                />
               </th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Part Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Part No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Category</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Vehicle</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Condition</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Price</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600">Actions</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.partName}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.partNo}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.category}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.vehicle}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.condition}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.price}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.status}</th>
+              <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.actions}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-[#1f1f23]">
             {parts.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No parts found</td></tr>
+              <tr>
+                <td colSpan={9} className="px-5 py-12 text-center text-zinc-600">
+                  {t.parts.noParts}
+                </td>
+              </tr>
             )}
-            {parts.map(p => (
-              <tr key={p.id} className={`border-b hover:bg-gray-50 ${selected.has(p.id) ? "bg-blue-50" : ""}`}>
-                <td className="px-4 py-3">
-                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleOne(p.id)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+            {parts.map((p) => (
+              <tr
+                key={p.id}
+                className={`hover:bg-white/[0.03] transition-colors ${selected.has(p.id) ? "bg-blue-500/5" : ""}`}
+              >
+                <td className="px-5 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggleOne(p.id)}
+                    className="rounded border-zinc-700 text-blue-600 focus:ring-blue-500/40 bg-[#18181b]"
+                  />
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{p.partNumber || "—"}</td>
-                <td className="px-4 py-3 text-gray-600">{p.category?.name || "—"}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{vehicleLabel(p)}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${conditionColor(p.condition)}`}>{p.condition}</span>
+                <td className="px-5 py-3.5 font-semibold text-zinc-100">{p.name}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-zinc-500">{p.partNumber || <span className="text-zinc-700">—</span>}</td>
+                <td className="px-5 py-3.5 text-zinc-400">{p.category?.name || <span className="text-zinc-700">—</span>}</td>
+                <td className="px-5 py-3.5 text-xs text-zinc-500 max-w-[160px] truncate">{vehicleLabel(p)}</td>
+                <td className="px-5 py-3.5">
+                  <span className={conditionBadge(p.condition)}>{p.condition}</span>
                 </td>
-                <td className="px-4 py-3 text-gray-800 font-medium">{p.price ? `€${Number(p.price).toFixed(2)}` : "—"}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    p.status === "available" ? "bg-green-100 text-green-700" :
-                    p.status === "reserved"  ? "bg-yellow-100 text-yellow-700" :
-                    "bg-gray-100 text-gray-600"
-                  }`}>{p.status}</span>
+                <td className="px-5 py-3.5 font-medium text-zinc-300">
+                  {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-zinc-700">—</span>}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => router.push(`/parts/${p.id}/edit`)} className="text-blue-600 hover:underline text-xs">Edit</button>
-                    <button onClick={() => setToDelete(p)} className="text-red-500 hover:underline text-xs">Delete</button>
+                <td className="px-5 py-3.5">
+                  <span className={statusBadge(p.status)}>{p.status}</span>
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => router.push(`/parts/${p.id}/edit`)}
+                      className="text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
+                    >
+                      {t.common.edit}
+                    </button>
+                    <button
+                      onClick={() => setToDelete(p)}
+                      className="text-xs font-medium text-zinc-600 hover:text-red-400 transition-colors"
+                    >
+                      {t.common.delete}
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -247,14 +328,33 @@ function PartsContent() {
         </table>
       </div>
 
+      {/* Pagination */}
       {meta && meta.totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
-          <span>{meta.total} parts — page {meta.page} of {meta.totalPages}</span>
+        <div className="flex items-center justify-between mt-5 text-sm">
+          <span className="text-zinc-500">
+            {t.common.page} {meta.page} {t.common.of} {meta.totalPages} &mdash; {meta.total} parts
+          </span>
           <div className="flex gap-2">
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-              className="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">← Prev</button>
-            <button disabled={page === meta.totalPages} onClick={() => setPage(p => p + 1)}
-              className="px-3 py-1 rounded border disabled:opacity-40 hover:bg-gray-100">Next →</button>
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+              {t.common.prev}
+            </button>
+            <button
+              disabled={page === meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {t.common.next}
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
@@ -263,5 +363,9 @@ function PartsContent() {
 }
 
 export default function PartsPage() {
-  return <Suspense fallback={<div className="p-6 text-gray-500">Loading parts…</div>}><PartsContent /></Suspense>;
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500">Loading parts…</div>}>
+      <PartsContent />
+    </Suspense>
+  );
 }

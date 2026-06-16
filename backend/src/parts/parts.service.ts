@@ -23,42 +23,48 @@ export class PartsService {
   }): Promise<PaginatedResult<Part>> {
     const { page = 1, limit = 20, ...rest } = filters;
     const where: any = {};
-    if (rest.vehicleId)  where.vehicleId  = rest.vehicleId;
+    if (rest.vehicleId) where.vehicleId = rest.vehicleId;
     if (rest.categoryId) where.categoryId = rest.categoryId;
-    if (rest.status)     where.status     = rest.status;
-    if (rest.condition)  where.condition  = rest.condition;
-    if (rest.search)     where.name       = ILike(`%${rest.search}%`);
+    if (rest.status) where.status = rest.status;
+    if (rest.condition) where.condition = rest.condition;
+    if (rest.search) where.name = ILike(`%${rest.search}%`);
 
     const [data, total] = await this.repo.findAndCount({
       where,
-      relations: [
-        'vehicle',
-        'vehicle.variant',
-        'vehicle.variant.generation',
-        'vehicle.variant.generation.model',
-        'vehicle.variant.generation.model.make',
-        'category',
-      ],
+      relations: {
+        vehicle: { variant: { generation: { model: { make: true } } } },
+        category: true,
+      },
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
-    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: number) {
-    const p = await this.repo.findOne({ where: { id }, relations: ['vehicle', 'category'] });
+    const p = await this.repo.findOne({
+      where: { id },
+      relations: { vehicle: true, category: true },
+    });
     if (!p) throw new NotFoundException('Part not found');
     return p;
   }
 
-  create(data: Partial<Part>) { return this.repo.save(this.repo.create(data)); }
+  create(data: Partial<Part>) {
+    return this.repo.save(this.repo.create(data));
+  }
 
   async update(id: number, data: Partial<Part>) {
     await this.repo.update(id, data);
     return this.findOne(id);
   }
 
-  async remove(id: number) { await this.repo.delete(id); }
+  async remove(id: number) {
+    await this.repo.delete(id);
+  }
 }

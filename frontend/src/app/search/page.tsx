@@ -3,13 +3,15 @@ import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Part } from "@/lib/types";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 function SearchContent() {
   const router = useRouter();
-  const [query, setQuery]     = useState("");
-  const [parts, setParts]     = useState<Part[]>([]);
-  const [total, setTotal]     = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { t } = useLanguage();
+  const [query, setQuery]       = useState("");
+  const [parts, setParts]       = useState<Part[]>([]);
+  const [total, setTotal]       = useState<number | null>(null);
+  const [loading, setLoading]   = useState(false);
   const [searched, setSearched] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -36,72 +38,120 @@ function SearchContent() {
     return [mk?.name, m?.name, g?.code, va?.name].filter(Boolean).join(" ") || `Vehicle #${v.id}`;
   };
 
-  const conditionColor = (c: string) =>
-    c === "good" ? "bg-green-100 text-green-700" :
-    c === "fair" ? "bg-yellow-100 text-yellow-700" :
-    "bg-red-100 text-red-700";
+  const statusBadge = (status: string) => {
+    if (status === "available") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+    if (status === "reserved")  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+    return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-500/15 text-zinc-400 border border-zinc-500/20";
+  };
+
+  const conditionBadge = (c: string) => {
+    if (c === "good") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+    if (c === "fair") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+    return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20";
+  };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Search Parts</h1>
+    <div className="p-8 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-zinc-100">{t.search.title}</h1>
+        <p className="text-zinc-400 text-sm mt-1">{t.search.subtitle}</p>
+      </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Search by part name…"
-          className="border border-gray-300 rounded-lg px-4 py-2.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* Search input */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-8">
+        <div className="relative flex-1">
+          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t.search.placeholder}
+            className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+          />
+        </div>
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors min-w-[100px]"
         >
-          {loading ? "Searching…" : "Search"}
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              {t.search.searching}
+            </span>
+          ) : t.search.searchButton}
         </button>
       </form>
 
+      {/* Results summary */}
       {searched && (
-        <p className="text-sm text-gray-500 mb-4">
-          {total === 0 ? "No parts found" : `Found ${total} part${total !== 1 ? "s" : ""}${total! > 50 ? " — showing first 50" : ""}`}
+        <p className="text-sm text-zinc-500 mb-4">
+          {total === 0
+            ? t.search.noResults
+            : t.search.resultsFound(total!, query) + (total! > 50 ? " — showing first 50" : "")}
         </p>
       )}
 
+      {/* Empty state */}
+      {!searched && (
+        <div className="text-center py-16">
+          <div className="w-14 h-14 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-7 h-7 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <p className="text-zinc-400 font-medium">{t.search.title}</p>
+          <p className="text-zinc-600 text-sm mt-1">{t.search.tryDifferent}</p>
+        </div>
+      )}
+
+      {/* Results table */}
       {parts.length > 0 && (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden shadow-xl shadow-black/20">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Part Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Category</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Vehicle</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Condition</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Price</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
+            <thead>
+              <tr className="bg-[#0f0f12] border-b border-[#27272a]">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.partName}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.category}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.vehicle}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.condition}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.parts.price}</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.status}</th>
               </tr>
             </thead>
-            <tbody>
-              {parts.map(p => (
-                <tr key={p.id} className="border-b hover:bg-gray-50 cursor-pointer"
-                  onClick={() => p.vehicleId && router.push(`/vehicles/${p.vehicleId}`)}>
-                  <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.category?.name || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{vehicleLabel(p)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${conditionColor(p.condition)}`}>{p.condition}</span>
+            <tbody className="divide-y divide-[#1f1f23]">
+              {parts.map((p) => (
+                <tr
+                  key={p.id}
+                  className="hover:bg-white/[0.03] transition-colors cursor-pointer"
+                  onClick={() => p.vehicleId && router.push(`/vehicles/${p.vehicleId}`)}
+                >
+                  <td className="px-6 py-3.5 font-semibold text-zinc-100">{p.name}</td>
+                  <td className="px-6 py-3.5 text-zinc-500 text-xs">{p.category?.name || <span className="text-zinc-700">—</span>}</td>
+                  <td className="px-6 py-3.5 text-xs text-zinc-500 max-w-[160px] truncate">{vehicleLabel(p)}</td>
+                  <td className="px-6 py-3.5">
+                    <span className={conditionBadge(p.condition)}>{p.condition}</span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{p.price ? `€${Number(p.price).toFixed(2)}` : "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      p.status === "available" ? "bg-green-100 text-green-700" :
-                      p.status === "reserved"  ? "bg-yellow-100 text-yellow-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>{p.status}</span>
+                  <td className="px-6 py-3.5 font-medium text-zinc-300">
+                    {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-zinc-700">—</span>}
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <span className={statusBadge(p.status)}>{p.status}</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {parts.length > 0 && (
+            <div className="px-6 py-3 border-t border-[#27272a]">
+              <p className="text-xs text-zinc-600">{t.search.clickPart}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -109,5 +159,9 @@ function SearchContent() {
 }
 
 export default function SearchPage() {
-  return <Suspense fallback={<div className="p-6 text-gray-500">Loading…</div>}><SearchContent /></Suspense>;
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500">Loading…</div>}>
+      <SearchContent />
+    </Suspense>
+  );
 }

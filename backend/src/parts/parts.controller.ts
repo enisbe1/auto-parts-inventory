@@ -15,6 +15,17 @@ class CreatePartDto {
   @IsOptional() @IsNumber() @Type(() => Number) categoryId?: number;
 }
 
+class UpdatePartDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() partNumber?: string;
+  @IsOptional() @IsString() condition?: string;
+  @IsOptional() @IsNumber() @Type(() => Number) price?: number;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsNumber() @Type(() => Number) vehicleId?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) categoryId?: number;
+}
+
 @Controller('parts')
 export class PartsController {
   constructor(private svc: PartsService) {}
@@ -42,6 +53,6 @@ export class PartsController {
 
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(+id); }
   @UseGuards(JwtAuthGuard) @Post()         create(@Body() dto: CreatePartDto) { return this.svc.create(dto); }
-  @UseGuards(JwtAuthGuard) @Patch(':id')   update(@Param('id') id: string, @Body() dto: CreatePartDto) { return this.svc.update(+id, dto); }
+  @UseGuards(JwtAuthGuard) @Patch(':id')   update(@Param('id') id: string, @Body() dto: UpdatePartDto) { return this.svc.update(+id, dto); }
   @UseGuards(JwtAuthGuard) @Delete(':id')  remove(@Param('id') id: string) { return this.svc.remove(+id); }
 }

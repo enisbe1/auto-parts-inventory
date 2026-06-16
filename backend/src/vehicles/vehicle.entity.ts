@@ -9,7 +9,7 @@ export class Vehicle {
   @Column({ nullable: true }) mileage: number;
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true }) purchasePrice: number;
   @Column({ nullable: true }) purchaseDate: string;
-  @Column({ default: 'in_stock', comment: 'in_stock | fully_dismantled' }) status: string;
+  @Column({ default: 'in_stock', comment: 'in_stock | scrapped | sold' }) status: string;
   @Column({ nullable: true }) notes: string;
   @ManyToOne(() => Variant, v => v.vehicles, { onDelete: 'SET NULL', nullable: true }) @JoinColumn() variant: Variant;
   @Column({ nullable: true }) variantId: number;

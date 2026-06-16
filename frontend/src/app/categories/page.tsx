@@ -5,8 +5,10 @@ import api from "@/lib/api";
 import { Category } from "@/lib/types";
 import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function CategoriesPage() {
+  const { t } = useLanguage();
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName]             = useState("");
   const [description, setDesc]      = useState("");
@@ -52,7 +54,7 @@ export default function CategoriesPage() {
     if (!toDelete) return;
     try {
       await api.delete(`/categories/${toDelete.id}`);
-      setToast({ message: `Category "${toDelete.name}" deleted`, type: "success" });
+      setToast({ message: `Category deleted`, type: "success" });
       load();
     } catch {
       setToast({ message: "Failed to delete category", type: "error" });
@@ -62,77 +64,129 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {toDelete && (
         <ConfirmModal
-          message={`Delete category "${toDelete.name}"? Parts assigned to this category will lose their category.`}
+          message={`Delete "${toDelete.name}"? ${t.categories.deleteConfirm}`}
           onConfirm={confirmDelete}
           onCancel={() => setToDelete(null)}
         />
       )}
 
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Part Categories</h1>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-zinc-100">{t.categories.title}</h1>
+        <p className="text-zinc-400 text-sm mt-1">{t.categories.subtitle}</p>
+      </div>
 
-      {/* Add category form */}
-      <form onSubmit={handleCreate} className="bg-white rounded-xl shadow p-5 mb-6">
-        <h2 className="font-semibold text-gray-700 mb-4">Add New Category</h2>
-        <div className="flex flex-col gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Name <span className="text-red-500">*</span></label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. Engine, Gearbox, Body…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+        {/* Add form */}
+        <div className="md:col-span-2">
+          <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 sticky top-8 shadow-xl shadow-black/20">
+            <h2 className="font-semibold text-zinc-100 mb-1">{t.categories.addCategory}</h2>
+            <p className="text-xs text-zinc-600 mb-5">New categories will appear in the parts form</p>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1.5">
+                  {t.categories.name} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Engine, Gearbox, Body…"
+                  required
+                  className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.categories.description}</label>
+                <input
+                  value={description}
+                  onChange={(e) => setDesc(e.target.value)}
+                  placeholder="Optional description…"
+                  className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    {t.categories.creating}
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    {t.categories.addCategory}
+                  </>
+                )}
+              </button>
+            </form>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-            <input
-              value={description}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="Optional description"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="self-start bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? "Adding…" : "+ Add Category"}
-          </button>
         </div>
-      </form>
 
-      {/* Categories list */}
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <div className="px-5 py-4 border-b bg-gray-50">
-          <span className="font-semibold text-gray-700">All Categories</span>
-          <span className="ml-2 text-sm text-gray-400">({categories.length})</span>
-        </div>
-        {categories.length === 0 ? (
-          <p className="px-5 py-8 text-center text-gray-400 text-sm">No categories yet</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {categories.map(c => (
-              <li key={c.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50">
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">{c.name}</p>
-                  {c.description && <p className="text-xs text-gray-400 mt-0.5">{c.description}</p>}
+        {/* Category list */}
+        <div className="md:col-span-3">
+          <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden shadow-xl shadow-black/20">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a] bg-[#0f0f12]">
+              <span className="font-semibold text-zinc-100">All Categories</span>
+              <span className="text-xs font-medium text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full border border-[#27272a]">
+                {categories.length}
+              </span>
+            </div>
+
+            {categories.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-5 h-5 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                  </svg>
                 </div>
-                <button
-                  onClick={() => setToDelete(c)}
-                  className="text-red-500 hover:text-red-700 text-xs font-medium"
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                <p className="text-sm text-zinc-500">{t.categories.noCategories}</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-[#1f1f23]">
+                {categories.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between px-6 py-4 hover:bg-white/[0.03] transition-colors group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-medium text-zinc-100 text-sm">{c.name}</p>
+                        {c.description && (
+                          <p className="text-xs text-zinc-500 mt-0.5">{c.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setToDelete(c)}
+                      className="text-xs font-medium text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      {t.common.delete}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

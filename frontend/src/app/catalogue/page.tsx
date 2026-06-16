@@ -4,10 +4,12 @@ import api from "@/lib/api";
 import { Make, CarModel, Generation, Variant } from "@/lib/types";
 import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type Level = "makes" | "models" | "generations" | "variants";
 
 export default function CataloguePage() {
+  const { t } = useLanguage();
   const [makes, setMakes]           = useState<Make[]>([]);
   const [models, setModels]         = useState<CarModel[]>([]);
   const [generations, setGens]      = useState<Generation[]>([]);
@@ -20,80 +22,46 @@ export default function CataloguePage() {
   const [toast, setToast]           = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [toDelete, setToDelete]     = useState<{ level: Level; id: number; name: string } | null>(null);
 
-  // ── Add form state ───────────────────────────────────────────────────────
-  const [newMake, setNewMake]               = useState({ name: "", countryOfOrigin: "" });
-  const [newModel, setNewModel]             = useState({ name: "", bodyType: "" });
-  const [newGen, setNewGen]                 = useState({ name: "", code: "", yearStart: "", yearEnd: "" });
-  const [newVariant, setNewVariant]         = useState({ name: "", engine: "", fuelType: "Diesel", powerKw: "" });
-  const [adding, setAdding]                 = useState(false);
+  const [newMake, setNewMake]       = useState({ name: "", countryOfOrigin: "" });
+  const [newModel, setNewModel]     = useState({ name: "", bodyType: "" });
+  const [newGen, setNewGen]         = useState({ name: "", code: "", yearStart: "", yearEnd: "" });
+  const [newVariant, setNewVariant] = useState({ name: "", engine: "", fuelType: "Diesel", powerKw: "" });
+  const [adding, setAdding]         = useState(false);
 
-  // ── Loaders ──────────────────────────────────────────────────────────────
-  const loadMakes = async () => {
-    const { data } = await api.get("/makes");
-    setMakes(data);
-  };
-  const loadModels = async (makeId: number) => {
-    const { data } = await api.get("/models", { params: { makeId } });
-    setModels(data);
-  };
-  const loadGens = async (modelId: number) => {
-    const { data } = await api.get("/generations", { params: { modelId } });
-    setGens(data);
-  };
-  const loadVariants = async (genId: number) => {
-    const { data } = await api.get("/variants", { params: { generationId: genId } });
-    setVariants(data);
-  };
+  const loadMakes    = async () => { const { data } = await api.get("/makes"); setMakes(data); };
+  const loadModels   = async (makeId: number) => { const { data } = await api.get("/models", { params: { makeId } }); setModels(data); };
+  const loadGens     = async (modelId: number) => { const { data } = await api.get("/generations", { params: { modelId } }); setGens(data); };
+  const loadVariants = async (genId: number) => { const { data } = await api.get("/variants", { params: { generationId: genId } }); setVariants(data); };
 
   useEffect(() => { loadMakes(); }, []);
 
-  const selectMake = (make: Make) => {
-    setSelMake(make); setSelModel(null); setSelGen(null);
-    setModels([]); setGens([]); setVariants([]);
-    loadModels(make.id);
-  };
-  const selectModel = (model: CarModel) => {
-    setSelModel(model); setSelGen(null);
-    setGens([]); setVariants([]);
-    loadGens(model.id);
-  };
-  const selectGen = (gen: Generation) => {
-    setSelGen(gen); setVariants([]);
-    loadVariants(gen.id);
-  };
+  const selectMake  = (make: Make)       => { setSelMake(make); setSelModel(null); setSelGen(null); setModels([]); setGens([]); setVariants([]); loadModels(make.id); };
+  const selectModel = (model: CarModel)  => { setSelModel(model); setSelGen(null); setGens([]); setVariants([]); loadGens(model.id); };
+  const selectGen   = (gen: Generation)  => { setSelGen(gen); setVariants([]); loadVariants(gen.id); };
 
-  // ── Delete ───────────────────────────────────────────────────────────────
   const confirmDelete = async () => {
     if (!toDelete) return;
-    const endpoints: Record<Level, string> = {
-      makes: "/makes", models: "/models", generations: "/generations", variants: "/variants",
-    };
+    const endpoints: Record<Level, string> = { makes: "/makes", models: "/models", generations: "/generations", variants: "/variants" };
     try {
       await api.delete(`${endpoints[toDelete.level]}/${toDelete.id}`);
       setToast({ message: `"${toDelete.name}" deleted`, type: "success" });
-      // Reload current level
-      if (toDelete.level === "makes")      { loadMakes(); setSelMake(null); setModels([]); setGens([]); setVariants([]); }
-      if (toDelete.level === "models")     { selMake && loadModels(selMake.id); setSelModel(null); setGens([]); setVariants([]); }
-      if (toDelete.level === "generations"){ selModel && loadGens(selModel.id); setSelGen(null); setVariants([]); }
-      if (toDelete.level === "variants")   { selGen && loadVariants(selGen.id); }
+      if (toDelete.level === "makes")       { loadMakes(); setSelMake(null); setModels([]); setGens([]); setVariants([]); }
+      if (toDelete.level === "models")      { selMake && loadModels(selMake.id); setSelModel(null); setGens([]); setVariants([]); }
+      if (toDelete.level === "generations") { selModel && loadGens(selModel.id); setSelGen(null); setVariants([]); }
+      if (toDelete.level === "variants")    { selGen && loadVariants(selGen.id); }
     } catch {
       setToast({ message: "Failed to delete — it may have linked records", type: "error" });
-    } finally {
-      setToDelete(null);
-    }
+    } finally { setToDelete(null); }
   };
 
-  // ── Add handlers ─────────────────────────────────────────────────────────
   const addMake = async (e: React.FormEvent) => {
     e.preventDefault(); setAdding(true);
     try {
       await api.post("/makes", { name: newMake.name.trim(), countryOfOrigin: newMake.countryOfOrigin.trim() || undefined });
       setToast({ message: `Make "${newMake.name}" added`, type: "success" });
-      setNewMake({ name: "", countryOfOrigin: "" });
-      loadMakes();
-    } catch (err: any) {
-      setToast({ message: err.response?.data?.message ?? "Failed to add make", type: "error" });
-    } finally { setAdding(false); }
+      setNewMake({ name: "", countryOfOrigin: "" }); loadMakes();
+    } catch (err: any) { setToast({ message: err.response?.data?.message ?? "Failed", type: "error" }); }
+    finally { setAdding(false); }
   };
 
   const addModel = async (e: React.FormEvent) => {
@@ -101,11 +69,9 @@ export default function CataloguePage() {
     try {
       await api.post("/models", { name: newModel.name.trim(), bodyType: newModel.bodyType || undefined, makeId: selMake.id });
       setToast({ message: `Model "${newModel.name}" added`, type: "success" });
-      setNewModel({ name: "", bodyType: "" });
-      loadModels(selMake.id);
-    } catch (err: any) {
-      setToast({ message: err.response?.data?.message ?? "Failed to add model", type: "error" });
-    } finally { setAdding(false); }
+      setNewModel({ name: "", bodyType: "" }); loadModels(selMake.id);
+    } catch (err: any) { setToast({ message: err.response?.data?.message ?? "Failed", type: "error" }); }
+    finally { setAdding(false); }
   };
 
   const addGen = async (e: React.FormEvent) => {
@@ -118,11 +84,9 @@ export default function CataloguePage() {
         modelId: selModel.id,
       });
       setToast({ message: `Generation "${newGen.name}" added`, type: "success" });
-      setNewGen({ name: "", code: "", yearStart: "", yearEnd: "" });
-      loadGens(selModel.id);
-    } catch (err: any) {
-      setToast({ message: err.response?.data?.message ?? "Failed to add generation", type: "error" });
-    } finally { setAdding(false); }
+      setNewGen({ name: "", code: "", yearStart: "", yearEnd: "" }); loadGens(selModel.id);
+    } catch (err: any) { setToast({ message: err.response?.data?.message ?? "Failed", type: "error" }); }
+    finally { setAdding(false); }
   };
 
   const addVariant = async (e: React.FormEvent) => {
@@ -135,24 +99,67 @@ export default function CataloguePage() {
         generationId: selGen.id,
       });
       setToast({ message: `Variant "${newVariant.name}" added`, type: "success" });
-      setNewVariant({ name: "", engine: "", fuelType: "Diesel", powerKw: "" });
-      loadVariants(selGen.id);
-    } catch (err: any) {
-      setToast({ message: err.response?.data?.message ?? "Failed to add variant", type: "error" });
-    } finally { setAdding(false); }
+      setNewVariant({ name: "", engine: "", fuelType: "Diesel", powerKw: "" }); loadVariants(selGen.id);
+    } catch (err: any) { setToast({ message: err.response?.data?.message ?? "Failed", type: "error" }); }
+    finally { setAdding(false); }
   };
 
-  // ── UI helpers ────────────────────────────────────────────────────────────
-  const colClass = "bg-white rounded-xl shadow flex flex-col overflow-hidden";
-  const headerClass = "px-4 py-3 bg-gray-50 border-b font-semibold text-gray-700 text-sm flex items-center justify-between";
-  const itemClass = (active: boolean) =>
-    `px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-blue-50 border-b last:border-0 text-sm transition-colors ${active ? "bg-blue-50 border-l-2 border-blue-500" : ""}`;
+  const inp = "w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 disabled:opacity-40 disabled:cursor-not-allowed";
+  const btn = "w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-40 transition-colors";
 
-  const inp = "w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const btn = "bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap";
+  const Column = ({
+    title, subtitle, items, selectedId, onSelect, onDelete, emptyMsg, addForm,
+  }: {
+    title: string; subtitle?: string; items: { id: number; primary: string; secondary?: string }[];
+    selectedId?: number; onSelect?: (id: number) => void; onDelete: (id: number, name: string) => void;
+    emptyMsg: string; addForm: React.ReactNode;
+  }) => (
+    <div className="bg-[#111113] border border-[#27272a] rounded-xl flex flex-col overflow-hidden shadow-xl shadow-black/20">
+      <div className="px-4 py-3 border-b border-[#27272a] bg-[#0f0f12]">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-zinc-100 text-sm">{title}</span>
+          {subtitle && <span className="text-xs text-blue-400 font-medium">{subtitle}</span>}
+        </div>
+        <span className="text-xs text-zinc-600">{items.length} items</span>
+      </div>
+      <div className="flex-1 overflow-y-auto max-h-64">
+        {items.length === 0 ? (
+          <p className="px-4 py-5 text-zinc-600 text-sm text-center">{emptyMsg}</p>
+        ) : (
+          <ul className="divide-y divide-[#1f1f23]">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                onClick={() => onSelect?.(item.id)}
+                className={`flex items-center justify-between px-4 py-2.5 text-sm transition-colors group ${
+                  onSelect ? "cursor-pointer hover:bg-white/[0.03]" : ""
+                } ${selectedId === item.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""}`}
+              >
+                <div>
+                  <p className={`font-medium ${selectedId === item.id ? "text-blue-400" : "text-zinc-200"}`}>
+                    {item.primary}
+                  </p>
+                  {item.secondary && (
+                    <p className="text-xs text-zinc-600 mt-0.5">{item.secondary}</p>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(item.id, item.primary); }}
+                  className="text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2 text-xs"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="p-3 border-t border-[#27272a] bg-[#0f0f12]/50">{addForm}</div>
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {toDelete && (
         <ConfirmModal
@@ -162,152 +169,119 @@ export default function CataloguePage() {
         />
       )}
 
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Vehicle Catalogue</h1>
-
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-        <span className="font-medium text-gray-800">All Makes</span>
-        {selMake && <><span>›</span><span className="font-medium text-gray-800">{selMake.name}</span></>}
-        {selModel && <><span>›</span><span className="font-medium text-gray-800">{selModel.name}</span></>}
-        {selGen && <><span>›</span><span className="font-medium text-gray-800">{selGen.name}</span></>}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-zinc-100">{t.catalogue.title}</h1>
+        <p className="text-zinc-400 text-sm mt-1">{t.catalogue.subtitle}</p>
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-sm mt-3">
+          <span className={selMake ? "text-zinc-500" : "font-medium text-zinc-300"}>
+            {t.catalogue.makes}
+          </span>
+          {selMake && (
+            <>
+              <svg className="w-3 h-3 text-zinc-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+              <span className={selModel ? "text-zinc-500" : "font-medium text-zinc-300"}>{selMake.name}</span>
+            </>
+          )}
+          {selModel && (
+            <>
+              <svg className="w-3 h-3 text-zinc-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+              <span className={selGen ? "text-zinc-500" : "font-medium text-zinc-300"}>{selModel.name}</span>
+            </>
+          )}
+          {selGen && (
+            <>
+              <svg className="w-3 h-3 text-zinc-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+              <span className="font-medium text-zinc-300">{selGen.name}</span>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
+        <Column
+          title={t.catalogue.makes}
+          items={makes.map((mk) => ({ id: mk.id, primary: mk.name, secondary: mk.countryOfOrigin }))}
+          selectedId={selMake?.id}
+          onSelect={(id) => { const mk = makes.find((m) => m.id === id); mk && selectMake(mk); }}
+          onDelete={(id, name) => setToDelete({ level: "makes", id, name })}
+          emptyMsg="No makes yet"
+          addForm={
+            <form onSubmit={addMake} className="space-y-2">
+              <input value={newMake.name} onChange={(e) => setNewMake((p) => ({ ...p, name: e.target.value }))} placeholder={`${t.catalogue.makes} name *`} className={inp} required />
+              <input value={newMake.countryOfOrigin} onChange={(e) => setNewMake((p) => ({ ...p, countryOfOrigin: e.target.value }))} placeholder={`${t.catalogue.country} (optional)`} className={inp} />
+              <button type="submit" disabled={adding} className={btn}>+ {t.catalogue.addMake}</button>
+            </form>
+          }
+        />
 
-        {/* ── Makes column ── */}
-        <div className={colClass}>
-          <div className={headerClass}>
-            <span>Makes ({makes.length})</span>
-          </div>
-          <div className="flex-1 overflow-y-auto max-h-72">
-            {makes.length === 0 && <p className="px-4 py-4 text-gray-400 text-sm">No makes yet</p>}
-            {makes.map(mk => (
-              <div key={mk.id} className={itemClass(selMake?.id === mk.id)} onClick={() => selectMake(mk)}>
-                <div>
-                  <p className="font-medium text-gray-800">{mk.name}</p>
-                  {mk.countryOfOrigin && <p className="text-xs text-gray-400">{mk.countryOfOrigin}</p>}
-                </div>
-                <button onClick={e => { e.stopPropagation(); setToDelete({ level: "makes", id: mk.id, name: mk.name }); }}
-                  className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">✕</button>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={addMake} className="p-3 border-t flex flex-col gap-2">
-            <input value={newMake.name} onChange={e => setNewMake(p => ({ ...p, name: e.target.value }))}
-              placeholder="Make name *" className={inp} required />
-            <input value={newMake.countryOfOrigin} onChange={e => setNewMake(p => ({ ...p, countryOfOrigin: e.target.value }))}
-              placeholder="Country (optional)" className={inp} />
-            <button type="submit" disabled={adding} className={btn}>+ Add Make</button>
-          </form>
-        </div>
-
-        {/* ── Models column ── */}
-        <div className={colClass}>
-          <div className={headerClass}>
-            <span>Models {selMake ? `(${models.length})` : ""}</span>
-            {selMake && <span className="text-xs text-blue-600 font-normal">{selMake.name}</span>}
-          </div>
-          <div className="flex-1 overflow-y-auto max-h-72">
-            {!selMake && <p className="px-4 py-4 text-gray-400 text-sm">← Select a make</p>}
-            {selMake && models.length === 0 && <p className="px-4 py-4 text-gray-400 text-sm">No models yet</p>}
-            {models.map(m => (
-              <div key={m.id} className={itemClass(selModel?.id === m.id)} onClick={() => selectModel(m)}>
-                <div>
-                  <p className="font-medium text-gray-800">{m.name}</p>
-                  {m.bodyType && <p className="text-xs text-gray-400">{m.bodyType}</p>}
-                </div>
-                <button onClick={e => { e.stopPropagation(); setToDelete({ level: "models", id: m.id, name: m.name }); }}
-                  className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">✕</button>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={addModel} className="p-3 border-t flex flex-col gap-2">
-            <input value={newModel.name} onChange={e => setNewModel(p => ({ ...p, name: e.target.value }))}
-              placeholder="Model name *" className={inp} required disabled={!selMake} />
-            <select value={newModel.bodyType} onChange={e => setNewModel(p => ({ ...p, bodyType: e.target.value }))}
-              className={inp} disabled={!selMake}>
-              <option value="">Body type…</option>
-              {["Saloon","Hatchback","Estate","SUV","Coupe","Convertible","MPV","Van","Pickup"].map(t =>
-                <option key={t} value={t}>{t}</option>)}
-            </select>
-            <button type="submit" disabled={adding || !selMake} className={btn}>+ Add Model</button>
-          </form>
-        </div>
-
-        {/* ── Generations column ── */}
-        <div className={colClass}>
-          <div className={headerClass}>
-            <span>Generations {selModel ? `(${generations.length})` : ""}</span>
-            {selModel && <span className="text-xs text-blue-600 font-normal">{selModel.name}</span>}
-          </div>
-          <div className="flex-1 overflow-y-auto max-h-72">
-            {!selModel && <p className="px-4 py-4 text-gray-400 text-sm">← Select a model</p>}
-            {selModel && generations.length === 0 && <p className="px-4 py-4 text-gray-400 text-sm">No generations yet</p>}
-            {generations.map(g => (
-              <div key={g.id} className={itemClass(selGen?.id === g.id)} onClick={() => selectGen(g)}>
-                <div>
-                  <p className="font-medium text-gray-800">{g.name}</p>
-                  {(g.yearStart || g.yearEnd) && (
-                    <p className="text-xs text-gray-400">{g.yearStart}–{g.yearEnd ?? "present"}</p>
-                  )}
-                </div>
-                <button onClick={e => { e.stopPropagation(); setToDelete({ level: "generations", id: g.id, name: g.name }); }}
-                  className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">✕</button>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={addGen} className="p-3 border-t flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <input value={newGen.name} onChange={e => setNewGen(p => ({ ...p, name: e.target.value }))}
-                placeholder="Name * (e.g. F30)" className={inp} required disabled={!selModel} />
-              <input value={newGen.code} onChange={e => setNewGen(p => ({ ...p, code: e.target.value }))}
-                placeholder="Code (e.g. F30)" className={inp} disabled={!selModel} />
-              <input type="number" value={newGen.yearStart} onChange={e => setNewGen(p => ({ ...p, yearStart: e.target.value }))}
-                placeholder="Year start" className={inp} disabled={!selModel} />
-              <input type="number" value={newGen.yearEnd} onChange={e => setNewGen(p => ({ ...p, yearEnd: e.target.value }))}
-                placeholder="Year end" className={inp} disabled={!selModel} />
-            </div>
-            <button type="submit" disabled={adding || !selModel} className={btn}>+ Add Generation</button>
-          </form>
-        </div>
-
-        {/* ── Variants column ── */}
-        <div className={colClass}>
-          <div className={headerClass}>
-            <span>Variants {selGen ? `(${variants.length})` : ""}</span>
-            {selGen && <span className="text-xs text-blue-600 font-normal">{selGen.name}</span>}
-          </div>
-          <div className="flex-1 overflow-y-auto max-h-72">
-            {!selGen && <p className="px-4 py-4 text-gray-400 text-sm">← Select a generation</p>}
-            {selGen && variants.length === 0 && <p className="px-4 py-4 text-gray-400 text-sm">No variants yet</p>}
-            {variants.map(v => (
-              <div key={v.id} className={itemClass(false)}>
-                <div>
-                  <p className="font-medium text-gray-800">{v.name}</p>
-                  <p className="text-xs text-gray-400">{[v.engine, v.fuelType, v.powerKw ? `${v.powerKw} kW` : null].filter(Boolean).join(" · ")}</p>
-                </div>
-                <button onClick={() => setToDelete({ level: "variants", id: v.id, name: v.name })}
-                  className="text-red-400 hover:text-red-600 text-xs ml-2 shrink-0">✕</button>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={addVariant} className="p-3 border-t flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <input value={newVariant.name} onChange={e => setNewVariant(p => ({ ...p, name: e.target.value }))}
-                placeholder="Name * (e.g. 320d)" className={inp} required disabled={!selGen} />
-              <input value={newVariant.engine} onChange={e => setNewVariant(p => ({ ...p, engine: e.target.value }))}
-                placeholder="Engine (e.g. 2.0 TDI)" className={inp} disabled={!selGen} />
-              <select value={newVariant.fuelType} onChange={e => setNewVariant(p => ({ ...p, fuelType: e.target.value }))}
-                className={inp} disabled={!selGen}>
-                {["Diesel","Petrol","Hybrid","Electric","LPG"].map(f => <option key={f} value={f}>{f}</option>)}
+        <Column
+          title={t.catalogue.models}
+          subtitle={selMake?.name}
+          items={models.map((m) => ({ id: m.id, primary: m.name, secondary: m.bodyType }))}
+          selectedId={selModel?.id}
+          onSelect={(id) => { const m = models.find((m) => m.id === id); m && selectModel(m); }}
+          onDelete={(id, name) => setToDelete({ level: "models", id, name })}
+          emptyMsg={selMake ? "No models yet" : `← ${t.catalogue.noMakeSelected}`}
+          addForm={
+            <form onSubmit={addModel} className="space-y-2">
+              <input value={newModel.name} onChange={(e) => setNewModel((p) => ({ ...p, name: e.target.value }))} placeholder={`${t.catalogue.models} name *`} className={inp} required disabled={!selMake} />
+              <select value={newModel.bodyType} onChange={(e) => setNewModel((p) => ({ ...p, bodyType: e.target.value }))} className={inp} disabled={!selMake}>
+                <option value="">{t.catalogue.bodyType}…</option>
+                {["Saloon","Hatchback","Estate","SUV","Coupe","Convertible","MPV","Van","Pickup"].map((tt) => <option key={tt}>{tt}</option>)}
               </select>
-              <input type="number" value={newVariant.powerKw} onChange={e => setNewVariant(p => ({ ...p, powerKw: e.target.value }))}
-                placeholder="Power (kW)" className={inp} disabled={!selGen} />
-            </div>
-            <button type="submit" disabled={adding || !selGen} className={btn}>+ Add Variant</button>
-          </form>
-        </div>
+              <button type="submit" disabled={adding || !selMake} className={btn}>+ {t.catalogue.addModel}</button>
+            </form>
+          }
+        />
 
+        <Column
+          title={t.catalogue.generations}
+          subtitle={selModel?.name}
+          items={generations.map((g) => ({ id: g.id, primary: g.name, secondary: g.yearStart ? `${g.yearStart}–${g.yearEnd ?? "present"}` : undefined }))}
+          selectedId={selGen?.id}
+          onSelect={(id) => { const g = generations.find((g) => g.id === id); g && selectGen(g); }}
+          onDelete={(id, name) => setToDelete({ level: "generations", id, name })}
+          emptyMsg={selModel ? "No generations yet" : `← ${t.catalogue.noModelSelected}`}
+          addForm={
+            <form onSubmit={addGen} className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={newGen.name} onChange={(e) => setNewGen((p) => ({ ...p, name: e.target.value }))} placeholder="Name *" className={inp} required disabled={!selModel} />
+                <input value={newGen.code} onChange={(e) => setNewGen((p) => ({ ...p, code: e.target.value }))} placeholder={t.catalogue.code} className={inp} disabled={!selModel} />
+                <input type="number" value={newGen.yearStart} onChange={(e) => setNewGen((p) => ({ ...p, yearStart: e.target.value }))} placeholder={t.catalogue.yearStart} className={inp} disabled={!selModel} />
+                <input type="number" value={newGen.yearEnd} onChange={(e) => setNewGen((p) => ({ ...p, yearEnd: e.target.value }))} placeholder={t.catalogue.yearEnd} className={inp} disabled={!selModel} />
+              </div>
+              <button type="submit" disabled={adding || !selModel} className={btn}>+ {t.catalogue.addGeneration}</button>
+            </form>
+          }
+        />
+
+        <Column
+          title={t.catalogue.variants}
+          subtitle={selGen?.name}
+          items={variants.map((v) => ({ id: v.id, primary: v.name, secondary: [v.engine, v.fuelType, v.powerKw ? `${v.powerKw} kW` : null].filter(Boolean).join(" · ") || undefined }))}
+          onDelete={(id, name) => setToDelete({ level: "variants", id, name })}
+          emptyMsg={selGen ? "No variants yet" : `← ${t.catalogue.noGenSelected}`}
+          addForm={
+            <form onSubmit={addVariant} className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={newVariant.name} onChange={(e) => setNewVariant((p) => ({ ...p, name: e.target.value }))} placeholder="Name *" className={inp} required disabled={!selGen} />
+                <input value={newVariant.engine} onChange={(e) => setNewVariant((p) => ({ ...p, engine: e.target.value }))} placeholder={t.catalogue.engine} className={inp} disabled={!selGen} />
+                <select value={newVariant.fuelType} onChange={(e) => setNewVariant((p) => ({ ...p, fuelType: e.target.value }))} className={inp} disabled={!selGen}>
+                  {["Diesel","Petrol","Hybrid","Electric","LPG"].map((f) => <option key={f}>{f}</option>)}
+                </select>
+                <input type="number" value={newVariant.powerKw} onChange={(e) => setNewVariant((p) => ({ ...p, powerKw: e.target.value }))} placeholder="kW" className={inp} disabled={!selGen} />
+              </div>
+              <button type="submit" disabled={adding || !selGen} className={btn}>+ {t.catalogue.addVariant}</button>
+            </form>
+          }
+        />
       </div>
     </div>
   );
