@@ -38,13 +38,13 @@ function MakeGrid({ vehicles, onSelect }: { vehicles: Vehicle[]; onSelect: (make
   }, [vehicles]);
 
   if (makes.length === 0) return (
-    <div className="bg-[#111113] border border-[#27272a] rounded-xl px-6 py-14 text-center shadow-xl shadow-black/20">
-      <div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-        <svg className="w-6 h-6 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-6 py-14 text-center shadow-xl shadow-black/20">
+      <div className="w-12 h-12 bg-[var(--surface-raised)] rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg className="w-6 h-6 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
         </svg>
       </div>
-      <p className="text-zinc-400 font-medium text-sm">{t.vehicles.noVehicles}</p>
+      <p className="text-[var(--text-secondary)] font-medium text-sm">{t.vehicles.noVehicles}</p>
       <Link href="/vehicles/new" className="inline-flex items-center gap-1.5 mt-3 text-blue-500 text-sm font-medium hover:text-blue-400 transition-colors">
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -60,15 +60,15 @@ function MakeGrid({ vehicles, onSelect }: { vehicles: Vehicle[]; onSelect: (make
         <button
           key={name}
           onClick={() => onSelect(name)}
-          className="group bg-[#111113] border border-[#27272a] rounded-xl p-5 text-left hover:bg-white/[0.03] hover:border-blue-500/40 transition-all shadow-xl shadow-black/20"
+          className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.03] hover:border-blue-500/40 transition-all shadow-xl shadow-black/20"
         >
           <div className="w-10 h-10 bg-blue-500/15 group-hover:bg-blue-500/20 rounded-xl flex items-center justify-center mb-3 transition-colors">
             <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
             </svg>
           </div>
-          <p className="font-bold text-zinc-100 text-sm group-hover:text-blue-400 transition-colors">{name}</p>
-          <p className="text-xs text-zinc-600 mt-0.5">{t.vehicles.vehiclesCount(count)}</p>
+          <p className="font-bold text-[var(--text-primary)] text-sm group-hover:text-blue-400 transition-colors">{name}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">{t.vehicles.vehiclesCount(count)}</p>
         </button>
       ))}
     </div>
@@ -97,15 +97,15 @@ function ModelGrid({ vehicles, make, onSelect }: { vehicles: Vehicle[]; make: st
         <button
           key={name}
           onClick={() => onSelect(name)}
-          className="group bg-[#111113] border border-[#27272a] rounded-xl p-5 text-left hover:bg-white/[0.03] hover:border-blue-500/40 transition-all shadow-xl shadow-black/20"
+          className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-left hover:bg-black/[0.04] dark:hover:bg-white/[0.03] hover:border-blue-500/40 transition-all shadow-xl shadow-black/20"
         >
-          <div className="w-10 h-10 bg-zinc-800 group-hover:bg-blue-500/15 rounded-xl flex items-center justify-center mb-3 transition-colors">
-            <svg className="w-5 h-5 text-zinc-500 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <div className="w-10 h-10 bg-[var(--surface-raised)] group-hover:bg-blue-500/15 rounded-xl flex items-center justify-center mb-3 transition-colors">
+            <svg className="w-5 h-5 text-[var(--text-secondary)] group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
             </svg>
           </div>
-          <p className="font-bold text-zinc-100 text-sm group-hover:text-blue-400 transition-colors">{name}</p>
-          <p className="text-xs text-zinc-600 mt-0.5">{t.vehicles.vehiclesCount(count)}</p>
+          <p className="font-bold text-[var(--text-primary)] text-sm group-hover:text-blue-400 transition-colors">{name}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">{t.vehicles.vehiclesCount(count)}</p>
         </button>
       ))}
     </div>
@@ -127,42 +127,42 @@ function VehicleList({
   const filtered = vehicles.filter(v => getMake(v) === make && getModel(v) === model);
 
   if (filtered.length === 0) return (
-    <div className="bg-[#111113] border border-[#27272a] rounded-xl px-6 py-12 text-center text-zinc-600 text-sm shadow-xl shadow-black/20">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-6 py-12 text-center text-[var(--text-muted)] text-sm shadow-xl shadow-black/20">
       {t.common.noResults}
     </div>
   );
 
   return (
-    <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden shadow-xl shadow-black/20">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-xl shadow-black/20">
       <table className="w-full text-sm">
         <thead>
-          <tr className="bg-[#0f0f12] border-b border-[#27272a]">
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.vehicles.variant}</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.vehicles.year}</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.vehicles.vin}</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.vehicles.mileage}</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.vehicles.paid}</th>
-            <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.status}</th>
-            <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.actions}</th>
+          <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.vehicles.variant}</th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.vehicles.year}</th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.vehicles.vin}</th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.vehicles.mileage}</th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.vehicles.paid}</th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.status}</th>
+            <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.actions}</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#1f1f23]">
+        <tbody className="divide-y divide-[var(--border-subtle)]">
           {filtered.map(v => (
             <tr
               key={v.id}
-              className="hover:bg-white/[0.03] transition-colors cursor-pointer"
+              className="hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors cursor-pointer"
               onClick={() => router.push(`/vehicles/${v.id}`)}
             >
-              <td className="px-6 py-3.5 font-semibold text-zinc-100">
-                {getVariant(v) || <span className="text-zinc-600 font-normal">{t.vehicles.base}</span>}
+              <td className="px-6 py-3.5 font-semibold text-[var(--text-primary)]">
+                {getVariant(v) || <span className="text-[var(--text-muted)] font-normal">{t.vehicles.base}</span>}
               </td>
-              <td className="px-6 py-3.5 text-zinc-400">{v.year || <span className="text-zinc-700">—</span>}</td>
-              <td className="px-6 py-3.5 font-mono text-xs text-zinc-600">{v.vin || <span className="text-zinc-700">—</span>}</td>
-              <td className="px-6 py-3.5 text-zinc-500 text-xs">
-                {v.mileage ? `${v.mileage.toLocaleString()} km` : <span className="text-zinc-700">—</span>}
+              <td className="px-6 py-3.5 text-[var(--text-secondary)]">{v.year || <span className="text-[var(--text-muted)]">—</span>}</td>
+              <td className="px-6 py-3.5 font-mono text-xs text-[var(--text-muted)]">{v.vin || <span className="text-[var(--text-muted)]">—</span>}</td>
+              <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs">
+                {v.mileage ? `${v.mileage.toLocaleString()} km` : <span className="text-[var(--text-muted)]">—</span>}
               </td>
-              <td className="px-6 py-3.5 text-zinc-400 text-xs font-medium">
-                {v.purchasePrice ? `€${Number(v.purchasePrice).toLocaleString()}` : <span className="text-zinc-700">—</span>}
+              <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs font-medium">
+                {v.purchasePrice ? `€${Number(v.purchasePrice).toLocaleString()}` : <span className="text-[var(--text-muted)]">—</span>}
               </td>
               <td className="px-6 py-3.5">
                 <span className={statusBadge(v.status)}>{v.status.replace("_", " ")}</span>
@@ -177,7 +177,7 @@ function VehicleList({
                   </button>
                   <button
                     onClick={() => onDelete(v)}
-                    className="text-xs font-medium text-zinc-600 hover:text-red-400 transition-colors"
+                    className="text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors"
                   >
                     {t.common.delete}
                   </button>
@@ -268,30 +268,30 @@ function VehiclesContent() {
           {/* Breadcrumb */}
           {level !== "makes" && (
             <nav className="flex items-center gap-1.5 text-sm mb-3">
-              <button onClick={goMakes} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+              <button onClick={goMakes} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                 {t.vehicles.allMakes}
               </button>
               {level === "vehicles" && (
                 <>
-                  <svg className="w-3.5 h-3.5 text-zinc-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                   </svg>
-                  <button onClick={() => goModels(selectedMake)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                  <button onClick={() => goModels(selectedMake)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                     {selectedMake}
                   </button>
                 </>
               )}
-              <svg className="w-3.5 h-3.5 text-zinc-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
-              <span className="text-zinc-300 font-medium">
+              <span className="text-[var(--text-primary)] font-medium">
                 {level === "models" ? selectedMake : selectedModel}
               </span>
             </nav>
           )}
 
-          <h1 className="text-2xl font-bold text-zinc-100">{heading}</h1>
-          <p className="text-zinc-400 text-sm mt-1">{loading ? t.common.loading : subtitle}</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{heading}</h1>
+          <p className="text-[var(--text-secondary)] text-sm mt-1">{loading ? t.common.loading : subtitle}</p>
         </div>
 
         <Link
@@ -307,7 +307,7 @@ function VehiclesContent() {
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-16 text-zinc-600 gap-2">
+        <div className="flex items-center justify-center py-16 text-[var(--text-muted)] gap-2">
           <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -337,7 +337,7 @@ function VehiclesContent() {
 
 export default function VehiclesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-[var(--text-secondary)]">Loading…</div>}>
       <VehiclesContent />
     </Suspense>
   );

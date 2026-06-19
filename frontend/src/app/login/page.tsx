@@ -39,7 +39,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel — brand */}
-      <div className="hidden lg:flex lg:w-[45%] bg-[#0f0f11] border-r border-[#1f1f23] flex-col justify-between p-12">
+      <div className="hidden lg:flex lg:w-[45%] bg-[var(--surface)] border-r border-[var(--border-subtle)] flex-col justify-between p-12">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-blue-500/20 rounded-xl flex items-center justify-center">
@@ -47,15 +47,15 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z" />
             </svg>
           </div>
-          <span className="text-zinc-100 font-semibold text-lg">AutoParts</span>
+          <span className="text-[var(--text-primary)] font-semibold text-lg">AutoParts</span>
         </div>
 
         {/* Main copy */}
         <div>
-          <h1 className="text-zinc-100 text-4xl font-bold leading-tight mb-4">
+          <h1 className="text-[var(--text-primary)] text-4xl font-bold leading-tight mb-4">
             {t.login.title}
           </h1>
-          <p className="text-zinc-500 text-base leading-relaxed mb-10">
+          <p className="text-[var(--text-secondary)] text-base leading-relaxed mb-10">
             {t.login.subtitle}
           </p>
 
@@ -68,17 +68,17 @@ export default function LoginPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                 </div>
-                <span className="text-zinc-400 text-sm">{f}</span>
+                <span className="text-[var(--text-secondary)] text-sm">{f}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="text-zinc-600 text-xs">© {new Date().getFullYear()} AutoParts Inventory — {t.login.footer}</p>
+        <p className="text-[var(--text-muted)] text-xs">© {new Date().getFullYear()} AutoParts Inventory — {t.login.footer}</p>
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[#09090b]">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[var(--background)]">
         <div className="w-full max-w-[360px]">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
@@ -87,28 +87,28 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63" />
               </svg>
             </div>
-            <span className="font-semibold text-zinc-100">AutoParts</span>
+            <span className="font-semibold text-[var(--text-primary)]">AutoParts</span>
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-zinc-100">
+            <h2 className="text-2xl font-bold text-[var(--text-primary)]">
               {mode === "login" ? t.login.welcomeBack : t.login.createAccount}
             </h2>
-            <p className="text-zinc-500 text-sm mt-1">
+            <p className="text-[var(--text-secondary)] text-sm mt-1">
               {mode === "login" ? t.login.signInTo : t.login.setupAccount}
             </p>
           </div>
 
           {/* Mode toggle */}
-          <div className="flex bg-[#111113] border border-[#27272a] rounded-xl p-1 mb-7">
+          <div className="flex bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1 mb-7">
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); }}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
                   mode === m
-                    ? "bg-[#27272a] text-zinc-100 shadow-sm"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[var(--border)] text-[var(--text-primary)] shadow-sm"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {m === "login" ? t.login.login : t.login.register}
@@ -118,7 +118,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.login.email}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.login.email}</label>
               <input
                 type="email"
                 value={email}
@@ -126,11 +126,11 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoFocus
-                className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
+                className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.login.password}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.login.password}</label>
               <input
                 type="password"
                 value={password}
@@ -138,7 +138,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
                 minLength={6}
-                className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
+                className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
               />
             </div>
 
@@ -168,8 +168,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-zinc-600 mt-6">
-            Demo: <span className="font-mono text-zinc-500">admin@autoparts.com</span> / <span className="font-mono text-zinc-500">admin123</span>
+          <p className="text-center text-xs text-[var(--text-muted)] mt-6">
+            Demo: <span className="font-mono text-[var(--text-secondary)]">admin@autoparts.com</span> / <span className="font-mono text-[var(--text-secondary)]">admin123</span>
           </p>
         </div>
       </div>

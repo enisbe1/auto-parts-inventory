@@ -149,8 +149,8 @@ export default function NewVehiclePage() {
   };
 
   // ── Style helpers ───────────────────────────────────────────────────────────
-  const inp = 'w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40';
-  const sel = 'w-full bg-[#18181b] border border-[#27272a] text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40';
+  const inp = 'w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40';
+  const sel = 'w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40';
 
   // ─────────────────────────────────────────────────────────────────────────────
   // STEP 1 — Vehicle form
@@ -160,7 +160,7 @@ export default function NewVehiclePage() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="mb-8">
-        <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+        <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors mb-4">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
@@ -172,43 +172,43 @@ export default function NewVehiclePage() {
             <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-bold">1</div>
             <span className="text-sm font-semibold text-blue-400">{t.newVehicle.step1}</span>
           </div>
-          <div className="flex-1 h-px bg-[#27272a] mx-2" />
+          <div className="flex-1 h-px bg-[var(--border)] mx-2" />
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-[#27272a] text-zinc-500 text-xs flex items-center justify-center font-bold">2</div>
-            <span className="text-sm text-zinc-500">{t.newVehicle.step2}</span>
+            <div className="w-6 h-6 rounded-full bg-[var(--border)] text-[var(--text-secondary)] text-xs flex items-center justify-center font-bold">2</div>
+            <span className="text-sm text-[var(--text-secondary)]">{t.newVehicle.step2}</span>
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-zinc-100">{t.newVehicle.title}</h1>
-        <p className="text-zinc-400 text-sm mt-1">{t.newVehicle.subtitle}</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t.newVehicle.title}</h1>
+        <p className="text-[var(--text-secondary)] text-sm mt-1">{t.newVehicle.subtitle}</p>
       </div>
 
       <form onSubmit={submitVehicle} className="space-y-6">
-        <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 space-y-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Hierarchy</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Make</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Make</label>
               <select value={makeId} onChange={e => setMakeId(e.target.value)} className={sel}>
                 <option value="">{t.newVehicle.selectMake}</option>
                 {makes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Model</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Model</label>
               <select value={modelId} onChange={e => setModelId(e.target.value)} disabled={!makeId} className={sel}>
                 <option value="">{t.newVehicle.selectModel}</option>
                 {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Generation</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Generation</label>
               <select value={generationId} onChange={e => setGenerationId(e.target.value)} disabled={!modelId} className={sel}>
                 <option value="">{t.newVehicle.selectGeneration}</option>
                 {generations.map(g => <option key={g.id} value={g.id}>{g.name}{g.code ? ` (${g.code})` : ''}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Variant</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Variant</label>
               <select value={variantId} onChange={e => setVariantId(e.target.value)} disabled={!generationId} className={sel}>
                 <option value="">{t.newVehicle.selectVariant}</option>
                 {variants.map(v => <option key={v.id} value={v.id}>{v.name}{v.fuelType ? ` · ${v.fuelType}` : ''}</option>)}
@@ -217,41 +217,41 @@ export default function NewVehiclePage() {
           </div>
         </div>
 
-        <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 space-y-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Details</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.vin}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.vin}</label>
               <input value={vin} onChange={e => setVin(e.target.value)} placeholder="WBA3B31070F000001" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.year}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.year}</label>
               <input type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="2014" min={1980} max={2030} className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.mileage}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.mileage}</label>
               <input type="number" value={mileage} onChange={e => setMileage(e.target.value)} placeholder="187000" min={0} className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.purchasePrice}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.purchasePrice}</label>
               <input type="number" value={purchasePrice} onChange={e => setPurchasePrice(e.target.value)} placeholder="800" min={0} step="0.01" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.purchaseDate}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.purchaseDate}</label>
               <input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} className={inp} />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.notes}</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.notes}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
               placeholder="Any additional notes…"
-              className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition resize-none" />
+              className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition resize-none" />
           </div>
         </div>
 
         <div className="flex gap-3">
           <button type="button" onClick={() => router.back()}
-            className="flex-1 bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 py-2.5 rounded-xl text-sm font-medium transition-all">
+            className="flex-1 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] py-2.5 rounded-xl text-sm font-medium transition-all">
             {t.common.cancel}
           </button>
           <button type="submit" disabled={saving}
@@ -277,9 +277,9 @@ export default function NewVehiclePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </div>
-          <span className="text-sm text-zinc-500">{t.newVehicle.step1}</span>
+          <span className="text-sm text-[var(--text-secondary)]">{t.newVehicle.step1}</span>
         </div>
-        <div className="flex-1 h-px bg-[#27272a] mx-2" />
+        <div className="flex-1 h-px bg-[var(--border)] mx-2" />
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-bold">2</div>
           <span className="text-sm font-semibold text-blue-400">{t.newVehicle.step2}</span>
@@ -287,49 +287,49 @@ export default function NewVehiclePage() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-100">{t.newVehicle.step2}</h1>
-        <p className="text-zinc-400 text-sm mt-1">
-          Vehicle <span className="font-medium text-zinc-200">{vehicleTitle}</span> saved. Select which parts to create automatically.
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t.newVehicle.step2}</h1>
+        <p className="text-[var(--text-secondary)] text-sm mt-1">
+          Vehicle <span className="font-medium text-[var(--text-primary)]">{vehicleTitle}</span> saved. Select which parts to create automatically.
         </p>
       </div>
 
       {/* Controls bar */}
-      <div className="bg-[#111113] border border-[#27272a] rounded-xl p-4 mb-5 flex flex-wrap items-center gap-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5 flex flex-wrap items-center gap-4">
         {/* Language picker */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-zinc-500 mr-1">{t.newVehicle.lang}:</span>
+          <span className="text-xs font-medium text-[var(--text-secondary)] mr-1">{t.newVehicle.lang}:</span>
           {(Object.keys(LANG_LABELS) as Lang[]).map(l => (
             <button key={l} onClick={() => setLang(l)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${lang === l ? 'bg-blue-600 text-white' : 'bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${lang === l ? 'bg-blue-600 text-white' : 'bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)]'}`}>
               {LANG_LABELS[l]}
             </button>
           ))}
         </div>
 
-        <div className="w-px h-5 bg-[#27272a]" />
+        <div className="w-px h-5 bg-[var(--border)]" />
 
         {/* Condition */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-zinc-500 mr-1">{t.newVehicle.condition}:</span>
+          <span className="text-xs font-medium text-[var(--text-secondary)] mr-1">{t.newVehicle.condition}:</span>
           {(['good', 'fair', 'poor'] as const).map(c => (
             <button key={c} onClick={() => setCondition(c)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize ${condition === c
                 ? c === 'good' ? 'bg-emerald-600 text-white'
                   : c === 'fair' ? 'bg-amber-500 text-white'
                   : 'bg-red-600 text-white'
-                : 'bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300'}`}>
+                : 'bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)]'}`}>
               {t.condition[c]}
             </button>
           ))}
         </div>
 
-        <div className="w-px h-5 bg-[#27272a]" />
+        <div className="w-px h-5 bg-[var(--border)]" />
 
         {/* Select all / none */}
         <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-zinc-500">{selected.size} of {templates.length} {t.common.selected}</span>
+          <span className="text-xs text-[var(--text-secondary)]">{selected.size} of {templates.length} {t.common.selected}</span>
           <button onClick={selectAll}  className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">{t.newVehicle.allSelected}</button>
-          <button onClick={selectNone} className="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">{t.newVehicle.noneSelected}</button>
+          <button onClick={selectNone} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-medium transition-colors">{t.newVehicle.noneSelected}</button>
         </div>
       </div>
 
@@ -340,34 +340,34 @@ export default function NewVehiclePage() {
           const allOn    = catParts.every(p => selected.has(p.id));
           const someOn   = catParts.some(p => selected.has(p.id));
           return (
-            <div key={cat} className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden">
+            <div key={cat} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               {/* Category header */}
               <button onClick={() => toggleCategory(cat)}
-                className="w-full flex items-center justify-between px-5 py-3 bg-[#0f0f12] border-b border-[#1f1f23] hover:bg-white/[0.02] transition-colors">
+                className="w-full flex items-center justify-between px-5 py-3 bg-[var(--surface)] border-b border-[var(--border-subtle)] hover:bg-black/[0.04] dark:hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${allOn ? 'bg-blue-600 border-blue-600' : someOn ? 'bg-blue-500/20 border-blue-500/40' : 'border-zinc-600'}`}>
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${allOn ? 'bg-blue-600 border-blue-600' : someOn ? 'bg-blue-500/20 border-blue-500/40' : 'border-[var(--border)]'}`}>
                     {allOn && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
                     {!allOn && someOn && <div className="w-1.5 h-1.5 bg-blue-400 rounded-sm" />}
                   </div>
-                  <span className="text-sm font-semibold text-zinc-200">{cat}</span>
-                  <span className="text-xs text-zinc-500">{catParts.filter(p => selected.has(p.id)).length}/{catParts.length}</span>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">{cat}</span>
+                  <span className="text-xs text-[var(--text-secondary)]">{catParts.filter(p => selected.has(p.id)).length}/{catParts.length}</span>
                 </div>
               </button>
 
               {/* Parts grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-0 divide-x divide-y divide-[#1f1f23]">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-0 divide-x divide-y divide-[var(--border-subtle)]">
                 {catParts.map(part => {
                   const on = selected.has(part.id);
                   return (
                     <label key={part.id}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${on ? 'bg-blue-500/5 hover:bg-blue-500/10' : 'hover:bg-white/[0.02]'}`}>
+                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${on ? 'bg-blue-500/5 hover:bg-blue-500/10' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.02]'}`}>
                       <input
                         type="checkbox"
                         checked={on}
                         onChange={() => togglePart(part.id)}
-                        className="rounded border-zinc-600 text-blue-600 focus:ring-blue-500/40 shrink-0 bg-[#18181b]"
+                        className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500/40 shrink-0 bg-[var(--surface-raised)]"
                       />
-                      <span className={`text-sm ${on ? 'text-zinc-200' : 'text-zinc-500'}`}>{part[lang]}</span>
+                      <span className={`text-sm ${on ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{part[lang]}</span>
                     </label>
                   );
                 })}
@@ -379,12 +379,12 @@ export default function NewVehiclePage() {
 
       {/* Progress bar while adding */}
       {addingParts && (
-        <div className="mb-4 bg-[#111113] border border-[#27272a] rounded-xl p-5">
+        <div className="mb-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-zinc-300">{t.newVehicle.addingParts}</span>
-            <span className="text-sm text-zinc-500">{progress.done} / {progress.total}</span>
+            <span className="text-sm font-medium text-[var(--text-primary)]">{t.newVehicle.addingParts}</span>
+            <span className="text-sm text-[var(--text-secondary)]">{progress.done} / {progress.total}</span>
           </div>
-          <div className="w-full bg-[#27272a] rounded-full h-2">
+          <div className="w-full bg-[var(--border)] rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-200"
               style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
@@ -398,7 +398,7 @@ export default function NewVehiclePage() {
         <button
           onClick={() => router.push(`/vehicles/${vehicleId}`)}
           disabled={addingParts}
-          className="flex-1 bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 py-2.5 rounded-xl text-sm font-medium disabled:opacity-50 transition-all"
+          className="flex-1 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] py-2.5 rounded-xl text-sm font-medium disabled:opacity-50 transition-all"
         >
           {t.newVehicle.skip}
         </button>

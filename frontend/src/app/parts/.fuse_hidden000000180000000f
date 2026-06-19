@@ -1,0 +1,405 @@
+"use client";
+import { useEffect, useRef, useState, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import api from "@/lib/api";
+import { Part } from "@/lib/types";
+import ConfirmModal from "@/components/ConfirmModal";
+import Toast from "@/components/Toast";
+import QRLabelModal from "@/components/QRLabelModal";
+import ImportModal from "@/components/ImportModal";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+interface PaginatedParts {
+  data: Part[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+const statusBadge = (status: string) => {
+  if (status === "available") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+  if (status === "reserved")  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-500/15 text-[var(--text-secondary)] border border-zinc-500/20";
+};
+
+const conditionBadge = (c: string) => {
+  if (c === "good") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+  if (c === "fair") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20";
+  return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20";
+};
+
+function PartsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { t } = useLanguage();
+  const [result, setResult]         = useState<PaginatedParts | null>(null);
+  const [page, setPage]             = useState(1);
+  const [search, setSearch]         = useState(searchParams.get("search") || "");
+  const [status, setStatus]         = useState(searchParams.get("status") || "");
+  const [selected, setSelected]     = useState<Set<number>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState("available");
+  const [toDelete, setToDelete]     = useState<Part | null>(null);
+  const [qrPart, setQrPart]         = useState<Part | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [bulkDelConfirm, setBulkDel] = useState(false);
+  const [toast, setToast]           = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [bulkLoading, setBulkLoad]  = useState(false);
+  const limit = 20;
+
+  // Keep a ref to the latest search/status so pagination always uses current filters
+  const filtersRef = useRef({ search, status });
+  useEffect(() => { filtersRef.current = { search, status }; }, [search, status]);
+
+  const load = async (p: number) => {
+    const { search: s, status: st } = filtersRef.current;
+    const params: Record<string, string | number> = { page: p, limit };
+    if (s)  params.search = s;
+    if (st) params.status = st;
+    const { data } = await api.get("/parts", { params });
+    setResult(data);
+    setSelected(new Set());
+  };
+
+  useEffect(() => { load(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault(); setPage(1); load(1);
+  };
+
+  const toggleOne = (id: number) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleAll = () => {
+    const ids = (result?.data ?? []).map((p) => p.id);
+    if (selected.size === ids.length) setSelected(new Set());
+    else setSelected(new Set(ids));
+  };
+
+  const bulkUpdateStatus = async () => {
+    if (selected.size === 0) return;
+    setBulkLoad(true);
+    try {
+      await Promise.all([...selected].map((id) => api.patch(`/parts/${id}`, { status: bulkStatus })));
+      setToast({ message: `${selected.size} parts marked as ${bulkStatus}`, type: "success" });
+      load(page);
+    } catch {
+      setToast({ message: "Some updates failed", type: "error" });
+    } finally { setBulkLoad(false); }
+  };
+
+  const bulkDelete = async () => {
+    setBulkLoad(true);
+    try {
+      await Promise.all([...selected].map((id) => api.delete(`/parts/${id}`)));
+      setToast({ message: `${selected.size} parts deleted`, type: "success" });
+      load(page);
+    } catch {
+      setToast({ message: "Some deletes failed", type: "error" });
+    } finally { setBulkLoad(false); setBulkDel(false); }
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    try {
+      await api.delete(`/parts/${toDelete.id}`);
+      setToast({ message: `Part deleted`, type: "success" });
+      load(page);
+    } catch {
+      setToast({ message: "Failed to delete part", type: "error" });
+    } finally { setToDelete(null); }
+  };
+
+  const exportCSV = async () => {
+    const params: Record<string, string | number> = { page: 1, limit: 10000 };
+    if (search) params.search = search;
+    if (status) params.status = status;
+    const { data } = await api.get("/parts", { params });
+    const parts: Part[] = data.data;
+    const headers = ["ID","Name","Part Number","Category","Vehicle","Condition","Price (EUR)","Status","Notes","Created At"];
+    const rows = parts.map((p) => {
+      const v = p.vehicle; const va = v?.variant;
+      const vLabel = va
+        ? [va.generation?.model?.make?.name, va.generation?.model?.name, va.generation?.code, va.name].filter(Boolean).join(" ")
+        : (v ? `Vehicle #${v.id}` : "");
+      return [p.id, `"${p.name}"`, p.partNumber||"", p.category?.name||"", vLabel, p.condition, p.price??"", p.status, `"${(p.notes||"").replace(/"/g,"'")}"`, p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ""].join(",");
+    });
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `parts-export-${new Date().toISOString().split("T")[0]}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: `Exported ${parts.length} parts`, type: "success" });
+  };
+
+  const vehicleLabel = (p: Part) => {
+    const v = p.vehicle; if (!v) return "—";
+    const va = v.variant; const g = va?.generation; const m = g?.model; const mk = m?.make;
+    return [mk?.name, m?.name, g?.code, va?.name].filter(Boolean).join(" ") || `Vehicle #${v.id}`;
+  };
+
+  const parts  = result?.data ?? [];
+  const meta   = result?.meta;
+  const allSel = parts.length > 0 && selected.size === parts.length;
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {qrPart && <QRLabelModal part={qrPart} onClose={() => setQrPart(null)} />}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onSuccess={(n) => {
+            setShowImport(false);
+            setToast({ message: `${n} parts imported successfully`, type: "success" });
+            load(1);
+          }}
+        />
+      )}
+      {toDelete && <ConfirmModal message={`Delete part "${toDelete.name}"?`} onConfirm={confirmDelete} onCancel={() => setToDelete(null)} />}
+      {bulkDelConfirm && (
+        <ConfirmModal
+          message={`Delete ${selected.size} selected parts? ${t.parts.deleteConfirm}`}
+          onConfirm={bulkDelete}
+          onCancel={() => setBulkDel(false)}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t.parts.title}</h1>
+          <p className="text-[var(--text-secondary)] text-sm mt-1">
+            {meta ? t.parts.partsTotal(meta.total) : t.common.loading}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            className="inline-flex items-center gap-2 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)] px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            {t.common.export}
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)] px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Import CSV
+          </button>
+          <Link
+            href="/parts/new"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {t.parts.addPart}
+          </Link>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-5">
+        <div className="relative flex-1 max-w-sm">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t.parts.searchParts}
+            className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+          />
+        </div>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
+        >
+          <option value="">{t.common.allStatuses}</option>
+          <option value="available">{t.status.available}</option>
+          <option value="reserved">{t.status.reserved}</option>
+          <option value="sold">{t.status.sold}</option>
+        </select>
+        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+          {t.common.filter}
+        </button>
+      </form>
+
+      {/* Bulk action toolbar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 mb-4 text-sm">
+          <span className="font-semibold text-blue-400">{selected.size} {t.common.selected}</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-[var(--text-secondary)] text-xs">{t.common.markAs}</span>
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              className="bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
+            >
+              <option value="available">{t.status.available}</option>
+              <option value="reserved">{t.status.reserved}</option>
+              <option value="sold">{t.status.sold}</option>
+            </select>
+            <button
+              onClick={bulkUpdateStatus}
+              disabled={bulkLoading}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {bulkLoading ? t.common.loading : t.common.apply}
+            </button>
+            <button
+              onClick={() => setBulkDel(true)}
+              disabled={bulkLoading}
+              className="bg-[var(--surface-raised)] text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+            >
+              {t.common.delete}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-xs transition-colors ml-1"
+            >
+              ✕ {t.common.cancel}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-xl shadow-black/20">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
+              <th className="px-5 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={allSel}
+                  onChange={toggleAll}
+                  className="rounded border-zinc-700 text-blue-600 focus:ring-blue-500/40 bg-[var(--surface-raised)]"
+                />
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.partName}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.partNo}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.category}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.vehicle}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.condition}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.price}</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.status}</th>
+              <th className="px-5 py-3 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.actions}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1f1f23]">
+            {parts.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-5 py-12 text-center text-[var(--text-muted)]">
+                  {t.parts.noParts}
+                </td>
+              </tr>
+            )}
+            {parts.map((p) => (
+              <tr
+                key={p.id}
+                className={`hover:bg-white/[0.03] transition-colors ${selected.has(p.id) ? "bg-blue-500/5" : ""}`}
+              >
+                <td className="px-5 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(p.id)}
+                    onChange={() => toggleOne(p.id)}
+                    className="rounded border-zinc-700 text-blue-600 focus:ring-blue-500/40 bg-[var(--surface-raised)]"
+                  />
+                </td>
+                <td className="px-5 py-3.5 font-semibold text-[var(--text-primary)]">{p.name}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-[var(--text-secondary)]">{p.partNumber || <span className="text-[var(--text-muted)]">—</span>}</td>
+                <td className="px-5 py-3.5 text-[var(--text-secondary)]">{p.category?.name || <span className="text-[var(--text-muted)]">—</span>}</td>
+                <td className="px-5 py-3.5 text-xs text-[var(--text-secondary)] max-w-[160px] truncate">{vehicleLabel(p)}</td>
+                <td className="px-5 py-3.5">
+                  <span className={conditionBadge(p.condition)}>{p.condition}</span>
+                </td>
+                <td className="px-5 py-3.5 font-medium text-zinc-300">
+                  {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className={statusBadge(p.status)}>{p.status}</span>
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setQrPart(p)}
+                      title="QR Label"
+                      className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-white/[0.06] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 17.25h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => router.push(`/parts/${p.id}/edit`)}
+                      className="text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
+                    >
+                      {t.common.edit}
+                    </button>
+                    <button
+                      onClick={() => setToDelete(p)}
+                      className="text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                    >
+                      {t.common.delete}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {meta && meta.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-5 text-sm">
+          <span className="text-[var(--text-secondary)]">
+            {t.common.page} {meta.page} {t.common.of} {meta.totalPages} &mdash; {meta.total} parts
+          </span>
+          <div className="flex gap-2">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+              {t.common.prev}
+            </button>
+            <button
+              disabled={page === meta.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-white/[0.04] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {t.common.next}
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PartsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-[var(--text-secondary)]">Loading parts…</div>}>
+      <PartsContent />
+    </Suspense>
+  );
+}

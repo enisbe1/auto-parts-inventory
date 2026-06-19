@@ -14,7 +14,7 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div
-        className="bg-[#111113] rounded-2xl border border-[#27272a] p-6 max-w-sm w-full"
+        className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 max-w-sm w-full"
         style={{ boxShadow: '0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)' }}
       >
         <div className="w-10 h-10 bg-emerald-500/15 rounded-xl flex items-center justify-center mb-4">
@@ -23,20 +23,20 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
           </svg>
         </div>
 
-        <h3 className="font-semibold text-zinc-100 mb-0.5">Confirm Sale</h3>
-        <p className="text-sm text-zinc-500 mb-5">
-          <span className="font-medium text-zinc-300">{part.name}</span>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-0.5">Confirm Sale</h3>
+        <p className="text-sm text-[var(--text-secondary)] mb-5">
+          <span className="font-medium text-[var(--text-primary)]">{part.name}</span>
           {part.price != null && (
-            <span className="text-zinc-600"> — asking €{Number(part.price).toFixed(2)}</span>
+            <span className="text-[var(--text-muted)]"> — asking €{Number(part.price).toFixed(2)}</span>
           )}
         </p>
 
         <div className="mb-5">
-          <label className="block text-sm font-medium text-zinc-400 mb-1.5">
-            Sold price <span className="text-zinc-600 font-normal">(€)</span>
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+            Sold price <span className="text-[var(--text-muted)] font-normal">(€)</span>
           </label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-sm font-medium">€</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-sm font-medium">€</span>
             <input
               type="number"
               value={soldPrice}
@@ -45,7 +45,7 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
               min={0}
               step="0.01"
               autoFocus
-              className="w-full bg-[#18181b] border border-[#27272a] rounded-xl pl-8 pr-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition"
+              className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl pl-8 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/40 transition"
             />
           </div>
           {part.price != null && soldPrice && Number(soldPrice) !== Number(part.price) && (
@@ -60,7 +60,7 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-[#27272a] text-zinc-400 text-sm font-medium hover:bg-white/[0.04] hover:text-zinc-300 transition-all"
+            className="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] transition-all"
           >
             Cancel
           </button>

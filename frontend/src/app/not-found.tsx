@@ -3,11 +3,11 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-6">
       <div className="text-center max-w-sm">
         <p className="text-8xl font-bold text-blue-500 mb-4 leading-none tracking-tight">404</p>
-        <h1 className="text-xl font-semibold text-zinc-100 mb-2">Page not found</h1>
-        <p className="text-zinc-500 text-sm mb-8">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Page not found</h1>
+        <p className="text-[var(--text-secondary)] text-sm mb-8">
           The page you are looking for does not exist or has been moved.
         </p>
         <Link

@@ -4,6 +4,8 @@ import Link from "next/link";
 import api from "@/lib/api";
 import { Part, Vehicle } from "@/lib/types";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ActivityFeed from "@/components/ActivityFeed";
+import AlertsWidget from "@/components/AlertsWidget";
 
 const statusBadge = (status: string) => {
   if (status === "available") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
@@ -17,6 +19,8 @@ export default function DashboardPage() {
   const [partMeta, setPartMeta]       = useState<{ total: number } | null>(null);
   const [recentParts, setRecentParts] = useState<Part[]>([]);
   const [stats, setStats] = useState({ available: 0, sold: 0 });
+  const [activities, setActivities] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -30,6 +34,8 @@ export default function DashboardPage() {
       setPartMeta(pRes.data.meta);
       setRecentParts(pRes.data.data);
       setStats({ available: avRes.data.meta.total, sold: soldRes.data.meta.total });
+      api.get('/activity?limit=5').then(r => setActivities(r.data)).catch(() => {});
+      api.get('/alerts').then(r => setAlerts(r.data)).catch(() => {});
     })();
   }, []);
 
@@ -98,35 +104,35 @@ export default function DashboardPage() {
     <div className="p-8 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-100">{t.dashboard.title}</h1>
-        <p className="text-zinc-400 text-sm mt-1">{t.dashboard.subtitle}</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t.dashboard.title}</h1>
+        <p className="text-[var(--text-secondary)] text-sm mt-1">{t.dashboard.subtitle}</p>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map((s) => (
           <Link key={s.label} href={s.href}
-            className="bg-[#111113] border border-[#27272a] rounded-xl p-5 hover:bg-white/[0.03] transition-all group shadow-xl shadow-black/20">
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-all group shadow-xl shadow-black/20">
             <div className="flex items-start justify-between mb-4">
               <div className={`w-10 h-10 ${s.iconBg} rounded-xl flex items-center justify-center`}>
                 <span className={s.iconColor}>{s.icon}</span>
               </div>
-              <svg className="w-4 h-4 text-zinc-700 group-hover:text-zinc-500 transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </div>
-            <p className="text-3xl font-bold text-zinc-100 mb-1">{s.value}</p>
-            <p className="text-sm text-zinc-400">{s.label}</p>
+            <p className="text-3xl font-bold text-[var(--text-primary)] mb-1">{s.value}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{s.label}</p>
           </Link>
         ))}
       </div>
 
       {/* Recent Parts table */}
-      <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden shadow-xl shadow-black/20">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-xl shadow-black/20">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <div>
-            <h2 className="font-semibold text-zinc-100">{t.dashboard.recentParts}</h2>
-            <p className="text-xs text-zinc-600 mt-0.5">{t.dashboard.last5}</p>
+            <h2 className="font-semibold text-[var(--text-primary)]">{t.dashboard.recentParts}</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">{t.dashboard.last5}</p>
           </div>
           <Link href="/parts"
             className="text-sm text-blue-500 hover:text-blue-400 font-medium flex items-center gap-1 transition-colors">
@@ -138,27 +144,27 @@ export default function DashboardPage() {
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-[#0f0f12] border-b border-[#27272a]">
-              <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.dashboard.part}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.dashboard.vehicle}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.dashboard.price}</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.status}</th>
+            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
+              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.dashboard.part}</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.dashboard.vehicle}</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.dashboard.price}</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.status}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#1f1f23]">
+          <tbody className="divide-y divide-[var(--border-subtle)]">
             {recentParts.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-10 text-center text-zinc-600 text-sm">
+                <td colSpan={4} className="px-6 py-10 text-center text-[var(--text-muted)] text-sm">
                   {t.dashboard.noParts}
                 </td>
               </tr>
             )}
             {recentParts.map((p) => (
-              <tr key={p.id} className="hover:bg-white/[0.03] transition-colors">
-                <td className="px-6 py-3.5 font-medium text-zinc-100">{p.name}</td>
-                <td className="px-6 py-3.5 text-zinc-400 text-xs max-w-[180px] truncate">{vehicleLabel(p)}</td>
-                <td className="px-6 py-3.5 text-zinc-300 font-medium">
-                  {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-zinc-700">—</span>}
+              <tr key={p.id} className="hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors">
+                <td className="px-6 py-3.5 font-medium text-[var(--text-primary)]">{p.name}</td>
+                <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs max-w-[180px] truncate">{vehicleLabel(p)}</td>
+                <td className="px-6 py-3.5 text-[var(--text-primary)] font-medium">
+                  {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
                 </td>
                 <td className="px-6 py-3.5">
                   <span className={statusBadge(p.status)}>{p.status}</span>
@@ -168,6 +174,16 @@ export default function DashboardPage() {
           </tbody>
         </table>
       </div>
+
+      {alerts && (alerts.staleParts?.length > 0 || alerts.negativeVehicles?.length > 0) && (
+        <AlertsWidget alerts={alerts} />
+      )}
+
+      {activities.length > 0 && (
+        <div className="mt-6">
+          <ActivityFeed activities={activities} />
+        </div>
+      )}
     </div>
   );
 }

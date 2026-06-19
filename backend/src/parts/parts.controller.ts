@@ -1,6 +1,10 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { parse } from 'csv-parse/sync';
 import { PartsService } from './parts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
 import { IsString, IsNumber, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -54,5 +58,14 @@ export class PartsController {
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(+id); }
   @UseGuards(JwtAuthGuard) @Post()         create(@Body() dto: CreatePartDto) { return this.svc.create(dto); }
   @UseGuards(JwtAuthGuard) @Patch(':id')   update(@Param('id') id: string, @Body() dto: UpdatePartDto) { return this.svc.update(+id, dto); }
-  @UseGuards(JwtAuthGuard) @Delete(':id')  remove(@Param('id') id: string) { return this.svc.remove(+id); }
+  @UseGuards(JwtAuthGuard) @Roles('admin') @Delete(':id')  remove(@Param('id') id: string) { return this.svc.remove(+id); }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('import')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  async importCSV(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const rows = parse(file.buffer, { columns: true, skip_empty_lines: true });
+    return this.svc.bulkCreate(rows);
+  }
 }

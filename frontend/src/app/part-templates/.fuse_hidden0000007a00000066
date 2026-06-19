@@ -1,0 +1,351 @@
+'use client';
+import { useEffect, useState, useRef } from 'react';
+import {
+  loadTemplates, saveTemplates, getCategories, newTemplateId,
+  DEFAULT_TEMPLATES, type PartTemplate,
+} from '@/lib/partTemplates';
+import ConfirmModal from '@/components/ConfirmModal';
+import Toast from '@/components/Toast';
+import { useLanguage } from '@/contexts/LanguageContext';
+
+type EditState = Omit<PartTemplate, 'id'>;
+
+const LANG_COLS: { key: keyof EditState & string; label: string; flag: string }[] = [
+  { key: 'en', label: 'English',  flag: '🇬🇧' },
+  { key: 'al', label: 'Albanian', flag: '🇦🇱' },
+  { key: 'de', label: 'German',   flag: '🇩🇪' },
+];
+
+export default function PartTemplatesPage() {
+  const { t } = useLanguage();
+  const [templates, setTemplates]   = useState<PartTemplate[]>([]);
+  const [editId, setEditId]         = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<EditState>({ en: '', al: '', de: '', category: '' });
+  const [toDelete, setToDelete]     = useState<PartTemplate | null>(null);
+  const [toast, setToast]           = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [search, setSearch]         = useState('');
+  const [addingNew, setAddingNew]   = useState(false);
+  const [newValues, setNewValues]   = useState<EditState>({ en: '', al: '', de: '', category: '' });
+  const [newCatMode, setNewCatMode] = useState(false); // typing a new category vs picking existing
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
+  // Load on mount
+  useEffect(() => {
+    setTemplates(loadTemplates());
+  }, []);
+
+  const persist = (updated: PartTemplate[]) => {
+    setTemplates(updated);
+    saveTemplates(updated);
+  };
+
+  // ── Edit ──────────────────────────────────────────────────────────────────
+  const startEdit = (t: PartTemplate) => {
+    setEditId(t.id);
+    setEditValues({ en: t.en, al: t.al, de: t.de, category: t.category });
+  };
+
+  const cancelEdit = () => { setEditId(null); };
+
+  const saveEdit = () => {
+    if (!editId) return;
+    if (!editValues.en.trim()) { setToast({ msg: 'English name is required', type: 'error' }); return; }
+    const updated = templates.map(tmpl =>
+      tmpl.id === editId ? { ...tmpl, ...editValues, en: editValues.en.trim(), al: editValues.al.trim(), de: editValues.de.trim(), category: editValues.category.trim() || tmpl.category } : tmpl
+    );
+    persist(updated);
+    setEditId(null);
+    setToast({ msg: 'Template saved', type: 'success' });
+  };
+
+  // ── Add new ───────────────────────────────────────────────────────────────
+  const openAdd = (category = '') => {
+    setNewValues({ en: '', al: '', de: '', category });
+    setNewCatMode(!category);
+    setAddingNew(true);
+    setTimeout(() => firstInputRef.current?.focus(), 50);
+  };
+
+  const cancelAdd = () => { setAddingNew(false); };
+
+  const saveNew = () => {
+    if (!newValues.en.trim()) { setToast({ msg: 'English name is required', type: 'error' }); return; }
+    if (!newValues.category.trim()) { setToast({ msg: 'Category is required', type: 'error' }); return; }
+    const tmpl: PartTemplate = {
+      id: newTemplateId(),
+      en: newValues.en.trim(),
+      al: newValues.al.trim(),
+      de: newValues.de.trim(),
+      category: newValues.category.trim(),
+    };
+    persist([...templates, tmpl]);
+    setAddingNew(false);
+    setToast({ msg: 'Template added', type: 'success' });
+  };
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const confirmDelete = () => {
+    if (!toDelete) return;
+    persist(templates.filter(tmpl => tmpl.id !== toDelete.id));
+    setToDelete(null);
+    setToast({ msg: 'Template deleted', type: 'success' });
+  };
+
+  // ── Reset to defaults ─────────────────────────────────────────────────────
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const resetToDefaults = () => {
+    persist([...DEFAULT_TEMPLATES]);
+    setResetConfirm(false);
+    setToast({ msg: 'Reset to defaults', type: 'success' });
+  };
+
+  // ── Filtered + grouped ────────────────────────────────────────────────────
+  const q = search.toLowerCase();
+  const filtered = q
+    ? templates.filter(tmpl =>
+        tmpl.en.toLowerCase().includes(q) ||
+        tmpl.al.toLowerCase().includes(q) ||
+        tmpl.de.toLowerCase().includes(q) ||
+        tmpl.category.toLowerCase().includes(q)
+      )
+    : templates;
+
+  const categories = getCategories(filtered);
+  const existingCategories = getCategories(templates);
+
+  const inp = 'w-full bg-[var(--surface-raised)] border border-[var(--border)] text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-lg px-3 py-1.5 text-sm transition';
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto">
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {toDelete && (
+        <ConfirmModal
+          message={`Delete template "${toDelete.en}"? This won't affect parts already created from it.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setToDelete(null)}
+        />
+      )}
+      {resetConfirm && (
+        <ConfirmModal
+          message={t.partTemplates.resetConfirm}
+          onConfirm={resetToDefaults}
+          onCancel={() => setResetConfirm(false)}
+        />
+      )}
+
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-100">{t.partTemplates.title}</h1>
+          <p className="text-zinc-400 text-sm mt-1">
+            {templates.length} template{templates.length !== 1 ? 's' : ''} — {t.partTemplates.subtitle}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setResetConfirm(true)}
+            className="inline-flex items-center gap-2 bg-[var(--surface-raised)] border border-[var(--border)] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            {t.partTemplates.resetDefaults}
+          </button>
+          <button
+            onClick={() => openAdd()}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {t.partTemplates.addTemplate}
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-sm mb-6">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={t.partTemplates.search}
+          className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl pl-9 pr-4 py-2.5 text-sm transition"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Add new template form */}
+      {addingNew && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-5 mb-6">
+          <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-4">New Template</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">{t.partTemplates.nameEN} <span className="text-red-400">*</span></label>
+              <input
+                ref={firstInputRef}
+                value={newValues.en}
+                onChange={e => setNewValues(v => ({ ...v, en: e.target.value }))}
+                placeholder="Engine"
+                className={inp}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">{t.partTemplates.nameAL}</label>
+              <input value={newValues.al} onChange={e => setNewValues(v => ({ ...v, al: e.target.value }))} placeholder="Motor" className={inp} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">{t.partTemplates.nameDE}</label>
+              <input value={newValues.de} onChange={e => setNewValues(v => ({ ...v, de: e.target.value }))} placeholder="Motor" className={inp} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-zinc-500">{t.partTemplates.category} <span className="text-red-400">*</span></label>
+                <button type="button" onClick={() => setNewCatMode(m => !m)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  {newCatMode ? 'Pick existing' : 'New category'}
+                </button>
+              </div>
+              {newCatMode ? (
+                <input value={newValues.category} onChange={e => setNewValues(v => ({ ...v, category: e.target.value }))} placeholder="My Category" className={inp} />
+              ) : (
+                <select value={newValues.category} onChange={e => setNewValues(v => ({ ...v, category: e.target.value }))} className={inp}>
+                  <option value="">— Pick —</option>
+                  {existingCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={cancelAdd} className="px-4 py-2 rounded-xl bg-[var(--surface-raised)] border border-[var(--border)] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 text-sm font-medium transition-all">
+              {t.common.cancel}
+            </button>
+            <button onClick={saveNew} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">
+              {t.partTemplates.addTemplate}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Grouped table */}
+      {categories.length === 0 && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-6 py-12 text-center text-zinc-500 text-sm">
+          {t.partTemplates.noTemplates}
+        </div>
+      )}
+
+      <div className="space-y-5">
+        {categories.map(cat => {
+          const catTemplates = filtered.filter(tmpl => tmpl.category === cat);
+          return (
+            <div key={cat} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+              {/* Category header */}
+              <div className="flex items-center justify-between px-6 py-3 bg-[var(--surface)] border-b border-[#1f1f23]">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-zinc-200">{cat}</span>
+                  <span className="text-xs font-medium text-zinc-500 bg-[#27272a] px-2 py-0.5 rounded-full">{catTemplates.length}</span>
+                </div>
+                <button
+                  onClick={() => openAdd(cat)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Add to {cat}
+                </button>
+              </div>
+
+              {/* Table */}
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#1f1f23]">
+                    {LANG_COLS.map(col => (
+                      <th key={col.key} className="px-6 py-2.5 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                        <span className="mr-1">{col.flag}</span>{col.label}
+                      </th>
+                    ))}
+                    <th className="px-6 py-2.5 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.actions}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1f1f23]">
+                  {catTemplates.map(tmpl => {
+                    const isEditing = editId === tmpl.id;
+                    return (
+                      <tr key={tmpl.id} className={`${isEditing ? 'bg-blue-500/5' : 'hover:bg-white/[0.03]'} transition-colors`}>
+                        {LANG_COLS.map(col => (
+                          <td key={col.key} className="px-6 py-3">
+                            {isEditing ? (
+                              <input
+                                value={(editValues as Record<string, string>)[col.key]}
+                                onChange={e => setEditValues(v => ({ ...v, [col.key]: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                                className="w-full bg-[var(--surface-raised)] border border-blue-500/40 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 rounded-lg px-3 py-1.5 text-sm transition"
+                                placeholder={col.label}
+                              />
+                            ) : (
+                              <span className={`${col.key === 'en' ? 'font-medium text-zinc-200' : 'text-zinc-400'}`}>
+                                {(tmpl as unknown as Record<string, string>)[col.key] || <span className="text-zinc-700">—</span>}
+                              </span>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={cancelEdit}
+                                className="text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1"
+                              >
+                                {t.common.cancel}
+                              </button>
+                              <button
+                                onClick={saveEdit}
+                                className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 transition-colors px-3 py-1.5 rounded-lg"
+                              >
+                                {t.common.save}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                onClick={() => startEdit(tmpl)}
+                                className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                {t.common.edit}
+                              </button>
+                              <button
+                                onClick={() => setToDelete(tmpl)}
+                                className="text-xs font-medium text-zinc-600 hover:text-red-400 transition-colors"
+                              >
+                                {t.common.delete}
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Keyboard hint */}
+      {editId && (
+        <p className="text-xs text-zinc-600 mt-4 text-center">
+          Press <kbd className="bg-[#27272a] text-zinc-400 px-1.5 py-0.5 rounded font-mono">Enter</kbd> to save &nbsp;·&nbsp; <kbd className="bg-[#27272a] text-zinc-400 px-1.5 py-0.5 rounded font-mono">Esc</kbd> to cancel
+        </p>
+      )}
+    </div>
+  );
+}

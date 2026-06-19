@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
 import { IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -36,5 +37,5 @@ export class VehiclesController {
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(+id); }
   @UseGuards(JwtAuthGuard) @Post()        create(@Body() dto: CreateVehicleDto) { return this.svc.create(dto); }
   @UseGuards(JwtAuthGuard) @Patch(':id')  update(@Param('id') id: string, @Body() dto: CreateVehicleDto) { return this.svc.update(+id, dto); }
-  @UseGuards(JwtAuthGuard) @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(+id); }
+  @UseGuards(JwtAuthGuard) @Roles('admin') @Delete(':id') remove(@Param('id') id: string) { return this.svc.remove(+id); }
 }

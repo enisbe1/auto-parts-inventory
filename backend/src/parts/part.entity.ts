@@ -34,5 +34,8 @@ export class Part {
   @JoinColumn({ name: 'categoryId' })
   category?: Category;
 
+  @Column({ type: 'text', array: true, default: [] }) photos: string[];
   @CreateDateColumn() createdAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true }) soldAt?: Date;
 }

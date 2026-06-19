@@ -1,19 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* ── Light mode (default) ──────────────────────────────────────────────────── */
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --surface: #111113;
-  --surface-raised: #18181b;
-  --border: #27272a;
-  --border-subtle: #1f1f23;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
-  --accent: #3b82f6;
+  --background:    #ffffff;
+  --foreground:    #18181b;
+  --surface:       #f4f4f5;
+  --surface-raised:#e4e4e7;
+  --border:        #d4d4d8;
+  --border-subtle: #e4e4e7;
+  --text-primary:  #18181b;
+  --text-secondary:#52525b;
+  --text-muted:    #a1a1aa;
+  --accent:        #3b82f6;
   --sidebar-width: 224px;
 }
+
+/* ── Dark mode ─────────────────────────────────────────────────────────────── */
+html.dark {
+  --background:    #09090b;
+  --foreground:    #fafafa;
+  --surface:       #111113;
+  --surface-raised:#18181b;
+  --border:        #27272a;
+  --border-subtle: #1f1f23;
+  --text-primary:  #fafafa;
+  --text-secondary:#a1a1aa;
+  --text-muted:    #52525b;
+}
+
+/* Enable Tailwind dark: prefix via html.dark class */
+@variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -40,11 +57,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: var(--border);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: var(--text-muted);
 }
 
 :focus-visible {
@@ -57,6 +74,6 @@ input[type="checkbox"] {
 }
 
 select option {
-  background: #18181b;
-  color: #fafafa;
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }

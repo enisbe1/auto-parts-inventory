@@ -17,7 +17,7 @@ export default function Toast({ message, type, onClose }: ToastProps) {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium max-w-xs border bg-[#111113]
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium max-w-xs border bg-[var(--surface)]
         ${isSuccess ? 'border-emerald-500/20' : 'border-red-500/20'}`}
       style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)' }}
     >
@@ -34,8 +34,8 @@ export default function Toast({ message, type, onClose }: ToastProps) {
           </svg>
         )}
       </div>
-      <span className="flex-1 text-zinc-200">{message}</span>
-      <button onClick={onClose} className="text-zinc-600 hover:text-zinc-400 transition-colors shrink-0 ml-1">
+      <span className="flex-1 text-[var(--text-primary)]">{message}</span>
+      <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0 ml-1">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>

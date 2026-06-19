@@ -14,5 +14,6 @@ export class Vehicle {
   @ManyToOne(() => Variant, v => v.vehicles, { onDelete: 'SET NULL', nullable: true }) @JoinColumn() variant: Variant;
   @Column({ nullable: true }) variantId: number;
   @OneToMany(() => Part, p => p.vehicle) parts: Part[];
+  @Column({ type: 'text', array: true, default: [] }) photos: string[];
   @CreateDateColumn() createdAt: Date;
 }

@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { Make, CarModel, Generation, Variant, Vehicle } from "@/lib/types";
 import Toast from "@/components/Toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import PhotoUploader from "@/components/PhotoUploader";
 
 export default function EditVehiclePage() {
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function EditVehiclePage() {
   const [status, setStatus]         = useState("in_stock");
   const [notes, setNotes]           = useState("");
 
+  const [photos, setPhotos]         = useState<string[]>([]);
+
   const [loading, setLoading]       = useState(false);
   const [fetching, setFetching]     = useState(true);
   const [toast, setToast]           = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -49,6 +52,7 @@ export default function EditVehiclePage() {
       setDate(v.purchaseDate ? v.purchaseDate.split("T")[0] : "");
       setStatus(v.status || "in_stock");
       setNotes(v.notes || "");
+      setPhotos(v.photos || []);
       // Pre-populate hierarchy
       if (v.variant) {
         const g = v.variant.generation;
@@ -105,6 +109,7 @@ export default function EditVehiclePage() {
         purchaseDate:  purchaseDate  || undefined,
         status,
         notes:         notes         || undefined,
+        photos,
       });
       setToast({ message: "Vehicle updated successfully", type: "success" });
       setTimeout(() => router.push(`/vehicles/${id}`), 1000);
@@ -119,11 +124,11 @@ export default function EditVehiclePage() {
     }
   };
 
-  const inp = "w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition";
-  const sel = "w-full bg-[#18181b] border border-[#27272a] text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40";
+  const inp = "w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition";
+  const sel = "w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition disabled:opacity-40";
 
   if (fetching) return (
-    <div className="p-8 flex items-center justify-center text-zinc-400">
+    <div className="p-8 flex items-center justify-center text-[var(--text-secondary)]">
       <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -137,23 +142,23 @@ export default function EditVehiclePage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="mb-8">
-        <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+        <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors mb-4">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
           {t.common.back}
         </button>
-        <h1 className="text-2xl font-bold text-zinc-100">{t.common.edit} {t.nav.vehicles.slice(0, -1)}</h1>
-        <p className="text-zinc-400 text-sm mt-1">{t.newVehicle.subtitle}</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">{t.common.edit} {t.nav.vehicles.slice(0, -1)}</h1>
+        <p className="text-[var(--text-secondary)] text-sm mt-1">{t.newVehicle.subtitle}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Hierarchy */}
-        <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 space-y-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Hierarchy</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Make</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Make</label>
               <select value={makeId} onChange={e => {
                 setMakeId(e.target.value);
                 setModelId("");
@@ -168,7 +173,7 @@ export default function EditVehiclePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Model</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Model</label>
               <select value={modelId} onChange={e => {
                 setModelId(e.target.value);
                 setGenId("");
@@ -181,7 +186,7 @@ export default function EditVehiclePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Generation</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Generation</label>
               <select value={genId} onChange={e => {
                 setGenId(e.target.value);
                 setVariantId("");
@@ -192,7 +197,7 @@ export default function EditVehiclePage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Variant</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Variant</label>
               <select value={variantId} onChange={e => setVariantId(e.target.value)} disabled={!genId} className={sel}>
                 <option value="">{t.newVehicle.selectVariant}</option>
                 {variants.map(v => <option key={v.id} value={v.id}>{v.name}{v.engine ? ` — ${v.engine}` : ""}</option>)}
@@ -202,31 +207,31 @@ export default function EditVehiclePage() {
         </div>
 
         {/* Vehicle details */}
-        <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 space-y-4">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Details</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.vin}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.vin}</label>
               <input value={vin} onChange={e => setVin(e.target.value)} placeholder="WBA3B3…" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.year}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.year}</label>
               <input type="number" value={year} onChange={e => setYear(e.target.value)} placeholder="2015" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.mileage}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.mileage}</label>
               <input type="number" value={mileage} onChange={e => setMileage(e.target.value)} placeholder="150000" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.purchasePrice}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.purchasePrice}</label>
               <input type="number" step="0.01" value={purchasePrice} onChange={e => setPrice(e.target.value)} placeholder="800" className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.purchaseDate}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.purchaseDate}</label>
               <input type="date" value={purchaseDate} onChange={e => setDate(e.target.value)} className={inp} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.common.status}</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.common.status}</label>
               <select value={status} onChange={e => setStatus(e.target.value)} className={sel}>
                 <option value="in_stock">{t.status.in_stock}</option>
                 <option value="scrapped">{t.status.scrapped}</option>
@@ -235,15 +240,20 @@ export default function EditVehiclePage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1.5">{t.newVehicle.notes}</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.notes}</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Any additional notes…"
-              className="w-full bg-[#18181b] border border-[#27272a] text-zinc-100 placeholder-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition resize-none" />
+              className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition resize-none" />
           </div>
         </div>
 
+        <div>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Photos</label>
+            <PhotoUploader photos={photos} onChange={setPhotos} />
+          </div>
+
         <div className="flex gap-3">
           <button type="button" onClick={() => router.back()}
-            className="flex-1 bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 py-2.5 rounded-xl text-sm font-medium transition-all">
+            className="flex-1 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] py-2.5 rounded-xl text-sm font-medium transition-all">
             {t.common.cancel}
           </button>
           <button type="submit" disabled={loading}

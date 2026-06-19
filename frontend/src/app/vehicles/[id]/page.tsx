@@ -8,6 +8,7 @@ import ConfirmModal from "@/components/ConfirmModal";
 import Toast from "@/components/Toast";
 import SellPartModal from "@/components/SellPartModal";
 import { useLanguage } from "@/contexts/LanguageContext";
+import PhotoGallery from "@/components/PhotoGallery";
 
 const statusBadge = (status: string) => {
   if (status === "available") return "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
@@ -108,7 +109,7 @@ export default function VehicleDetailPage() {
 
   if (!vehicle) {
     return (
-      <div className="p-8 flex items-center justify-center text-zinc-400">
+      <div className="p-8 flex items-center justify-center text-[var(--text-secondary)]">
         <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -172,7 +173,7 @@ export default function VehicleDetailPage() {
       <div className="mb-8">
         <button
           onClick={() => router.push("/vehicles")}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors mb-4"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -182,13 +183,22 @@ export default function VehicleDetailPage() {
 
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-zinc-100">{title}</h1>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">{title}</h1>
             <span className={vehicleStatusBadge(vehicle.status)}>{vehicle.status.replace("_", " ")}</span>
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => router.push(`/vehicles/${id}/report`)}
+              className="inline-flex items-center gap-2 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              Export Report
+            </button>
+            <button
               onClick={() => router.push(`/vehicles/${id}/edit`)}
-              className="inline-flex items-center gap-2 bg-[#18181b] border border-[#27272a] text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+              className="inline-flex items-center gap-2 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-secondary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -211,35 +221,35 @@ export default function VehicleDetailPage() {
       {/* Info grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {infoItems.map((item) => (
-          <div key={item.label} className="bg-[#18181b] rounded-lg px-4 py-3">
-            <p className="text-xs text-zinc-600 mb-1">{item.label}</p>
-            <p className="text-sm font-medium text-zinc-200">{item.value || <span className="text-zinc-600">—</span>}</p>
+          <div key={item.label} className="bg-[var(--surface-raised)] rounded-lg px-4 py-3">
+            <p className="text-xs text-[var(--text-muted)] mb-1">{item.label}</p>
+            <p className="text-sm font-medium text-[var(--text-primary)]">{item.value || <span className="text-[var(--text-muted)]">—</span>}</p>
           </div>
         ))}
       </div>
 
       {/* Profitability card */}
-      <div className="bg-[#111113] border border-[#27272a] rounded-xl p-6 mb-6">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 mb-6">
         <div className="flex items-center gap-2 mb-5">
           <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
             </svg>
           </div>
-          <h3 className="font-semibold text-zinc-100 text-sm">{t.vehicleDetail.profitability}</h3>
+          <h3 className="font-semibold text-[var(--text-primary)] text-sm">{t.vehicleDetail.profitability}</h3>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Purchase cost — blue accent */}
-          <div className="bg-[#111113] border border-[#27272a] rounded-xl p-4 border-t-2 border-t-blue-500/40">
-            <p className="text-xs font-medium text-zinc-600 mb-1">{t.vehicleDetail.purchasedFor}</p>
-            <p className="font-bold text-zinc-200 text-lg">
-              {purchaseCost != null ? `€${purchaseCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-zinc-600 text-base">—</span>}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 border-t-2 border-t-blue-500/40">
+            <p className="text-xs font-medium text-[var(--text-muted)] mb-1">{t.vehicleDetail.purchasedFor}</p>
+            <p className="font-bold text-[var(--text-primary)] text-lg">
+              {purchaseCost != null ? `€${purchaseCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : <span className="text-[var(--text-muted)] text-base">—</span>}
             </p>
           </div>
 
           {/* Revenue from sold parts — emerald accent */}
-          <div className="bg-[#111113] border border-[#27272a] rounded-xl p-4 border-t-2 border-t-emerald-500/40">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 border-t-2 border-t-emerald-500/40">
             <p className="text-xs font-medium text-emerald-500 mb-1">{t.vehicleDetail.revenue}</p>
             <p className="font-bold text-emerald-400 text-lg">
               €{soldRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -248,7 +258,7 @@ export default function VehicleDetailPage() {
           </div>
 
           {/* Remaining potential — purple accent */}
-          <div className="bg-[#111113] border border-[#27272a] rounded-xl p-4 border-t-2 border-t-purple-500/40">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 border-t-2 border-t-purple-500/40">
             <p className="text-xs font-medium text-purple-400 mb-1">{t.vehicleDetail.remainingValue}</p>
             <p className="font-bold text-purple-300 text-lg">
               €{potentialValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -259,7 +269,7 @@ export default function VehicleDetailPage() {
           </div>
 
           {/* Net profit — green/red accent */}
-          <div className={`bg-[#111113] border border-[#27272a] rounded-xl p-4 border-t-2 ${profit !== null ? (isProfit ? "border-t-emerald-500/40" : "border-t-red-500/40") : "border-t-zinc-500/40"}`}>
+          <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 border-t-2 ${profit !== null ? (isProfit ? "border-t-emerald-500/40" : "border-t-red-500/40") : "border-t-zinc-500/40"}`}>
             <p className={`text-xs font-medium mb-1 ${profit !== null ? (isProfit ? "text-emerald-500" : "text-red-400") : "text-zinc-600"}`}>
               {t.vehicleDetail.netPL}
             </p>
@@ -279,6 +289,14 @@ export default function VehicleDetailPage() {
         </div>
       </div>
 
+      {/* Photos */}
+      {(vehicle.photos?.length ?? 0) > 0 && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 mb-6">
+          <h3 className="font-semibold text-[var(--text-primary)] text-sm mb-4">Photos</h3>
+          <PhotoGallery photos={vehicle.photos ?? []} />
+        </div>
+      )}
+
       {/* Parts summary mini-stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
@@ -286,21 +304,21 @@ export default function VehicleDetailPage() {
           { label: t.status.reserved,  value: reserved.length,  color: "text-amber-400",   bg: "bg-amber-500/10" },
           { label: t.status.sold,      value: sold.length,      color: "text-zinc-400",    bg: "bg-zinc-500/10" },
         ].map((s) => (
-          <div key={s.label} className="bg-[#111113] border border-[#27272a] rounded-xl p-4 flex items-center gap-3">
+          <div key={s.label} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
             <div className={`w-9 h-9 ${s.bg} rounded-lg flex items-center justify-center shrink-0`}>
               <span className={`text-lg font-bold ${s.color}`}>{s.value}</span>
             </div>
-            <p className="text-sm text-zinc-500">{s.label}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Parts table */}
-      <div className="bg-[#111113] border border-[#27272a] rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <div>
-            <h2 className="font-semibold text-zinc-100">{t.vehicleDetail.partsInventory}</h2>
-            <p className="text-xs text-zinc-600 mt-0.5">{parts.length} part{parts.length !== 1 ? "s" : ""}</p>
+            <h2 className="font-semibold text-[var(--text-primary)]">{t.vehicleDetail.partsInventory}</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">{parts.length} part{parts.length !== 1 ? "s" : ""}</p>
           </div>
           <Link
             href={`/parts/new?vehicleId=${id}`}
@@ -315,31 +333,31 @@ export default function VehicleDetailPage() {
 
         {parts.length === 0 ? (
           <div className="px-6 py-12 text-center">
-            <p className="text-zinc-500 text-sm">No parts added yet</p>
-            <p className="text-zinc-600 text-xs mt-1">Add parts from this vehicle using the button above</p>
+            <p className="text-[var(--text-secondary)] text-sm">No parts added yet</p>
+            <p className="text-[var(--text-muted)] text-xs mt-1">Add parts from this vehicle using the button above</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#0f0f12] border-b border-[#1f1f23]">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">Cond.</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.status}</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t.common.actions}</th>
+              <tr className="bg-[var(--surface)] border-b border-[var(--border-subtle)]">
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Cond.</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Price</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.status}</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.actions}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1f1f23]">
+            <tbody className="divide-y divide-[var(--border-subtle)]">
               {parts.map((p) => (
-                <tr key={p.id} className="hover:bg-white/[0.03] transition-colors">
-                  <td className="px-6 py-3.5 font-semibold text-zinc-100">{p.name}</td>
-                  <td className="px-6 py-3.5 text-zinc-500 text-xs">{p.category?.name || <span className="text-zinc-700">—</span>}</td>
+                <tr key={p.id} className="hover:bg-black/[0.04] dark:hover:bg-white/[0.03] transition-colors">
+                  <td className="px-6 py-3.5 font-semibold text-[var(--text-primary)]">{p.name}</td>
+                  <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs">{p.category?.name || <span className="text-[var(--text-muted)]">—</span>}</td>
                   <td className="px-6 py-3.5">
                     <span className={conditionBadge(p.condition)}>{p.condition}</span>
                   </td>
-                  <td className="px-6 py-3.5 font-medium text-zinc-300">
-                    {p.price != null ? `€${Number(p.price).toFixed(2)}` : <span className="text-zinc-700">—</span>}
+                  <td className="px-6 py-3.5 font-medium text-[var(--text-primary)]">
+                    {p.price != null ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
                   </td>
                   <td className="px-6 py-3.5">
                     {p.status === "sold" ? (
@@ -348,7 +366,7 @@ export default function VehicleDetailPage() {
                       <select
                         value={p.status}
                         onChange={(e) => handleStatusChange(p, e.target.value)}
-                        className="bg-[#18181b] border border-[#27272a] text-zinc-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
+                        className="bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
                       >
                         <option value="available">{t.status.available}</option>
                         <option value="reserved">{t.status.reserved}</option>
@@ -359,7 +377,7 @@ export default function VehicleDetailPage() {
                   <td className="px-6 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button onClick={() => router.push(`/parts/${p.id}/edit`)} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{t.common.edit}</button>
-                      <button onClick={() => setToDelete(p)} className="text-xs font-medium text-zinc-600 hover:text-red-400 transition-colors">{t.common.delete}</button>
+                      <button onClick={() => setToDelete(p)} className="text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors">{t.common.delete}</button>
                     </div>
                   </td>
                 </tr>
@@ -373,7 +391,7 @@ export default function VehicleDetailPage() {
       {vehicle.notes && (
         <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-4">
           <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1">{t.common.notes}</p>
-          <p className="text-sm text-zinc-300">{vehicle.notes}</p>
+          <p className="text-sm text-[var(--text-primary)]">{vehicle.notes}</p>
         </div>
       )}
     </div>
