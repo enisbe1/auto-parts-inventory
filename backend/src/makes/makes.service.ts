@@ -19,6 +19,10 @@ export class MakesService {
   create(name: string, countryOfOrigin?: string) {
     return this.repo.save(this.repo.create({ name, countryOfOrigin }));
   }
+  async update(id: number, data: { name?: string; countryOfOrigin?: string }) {
+    await this.repo.update(id, data);
+    return this.findOne(id);
+  }
   async remove(id: number) {
     await this.repo.delete(id);
   }

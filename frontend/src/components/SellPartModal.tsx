@@ -1,14 +1,17 @@
 'use client';
 import { useState } from 'react';
 import { Part } from '@/lib/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Props {
   part: Part;
   onConfirm: (soldPrice: number | undefined) => void;
   onCancel: () => void;
+  isLoading?: boolean;
 }
 
-export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
+export default function SellPartModal({ part, onConfirm, onCancel, isLoading = false }: Props) {
+  const { t } = useLanguage();
   const [soldPrice, setSoldPrice] = useState(part.price != null ? String(part.price) : '');
 
   return (
@@ -23,17 +26,17 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
           </svg>
         </div>
 
-        <h3 className="font-semibold text-[var(--text-primary)] mb-0.5">Confirm Sale</h3>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-0.5">{t.sell.title}</h3>
         <p className="text-sm text-[var(--text-secondary)] mb-5">
           <span className="font-medium text-[var(--text-primary)]">{part.name}</span>
           {part.price != null && (
-            <span className="text-[var(--text-muted)]"> — asking €{Number(part.price).toFixed(2)}</span>
+            <span className="text-[var(--text-muted)]"> — {t.sell.askingPrice} €{Number(part.price).toFixed(2)}</span>
           )}
         </p>
 
         <div className="mb-5">
           <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-            Sold price <span className="text-[var(--text-muted)] font-normal">(€)</span>
+            {t.sell.soldPrice} <span className="text-[var(--text-muted)] font-normal">(€)</span>
           </label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] text-sm font-medium">€</span>
@@ -51,8 +54,8 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
           {part.price != null && soldPrice && Number(soldPrice) !== Number(part.price) && (
             <p className={`text-xs mt-1.5 ${Number(soldPrice) > Number(part.price) ? 'text-emerald-400' : 'text-amber-400'}`}>
               {Number(soldPrice) > Number(part.price)
-                ? `+€${(Number(soldPrice) - Number(part.price)).toFixed(2)} above asking price`
-                : `-€${(Number(part.price) - Number(soldPrice)).toFixed(2)} below asking price`}
+                ? t.sell.aboveAsking((Number(soldPrice) - Number(part.price)).toFixed(2))
+                : t.sell.belowAsking((Number(part.price) - Number(soldPrice)).toFixed(2))}
             </p>
           )}
         </div>
@@ -60,15 +63,25 @@ export default function SellPartModal({ part, onConfirm, onCancel }: Props) {
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] transition-all"
+            disabled={isLoading}
+            className="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-secondary)] text-sm font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.04] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             onClick={() => onConfirm(soldPrice ? +soldPrice : undefined)}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition-colors"
+            disabled={isLoading}
+            className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
           >
-            Confirm Sale
+            {isLoading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                {t.common.loading}
+              </>
+            ) : t.sell.confirm}
           </button>
         </div>
       </div>

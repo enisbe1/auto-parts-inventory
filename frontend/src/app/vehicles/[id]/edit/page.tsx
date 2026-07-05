@@ -34,6 +34,7 @@ export default function EditVehiclePage() {
 
   const [loading, setLoading]       = useState(false);
   const [fetching, setFetching]     = useState(true);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
   const [toast, setToast]           = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Load makes and existing vehicle
@@ -71,33 +72,54 @@ export default function EditVehiclePage() {
     if (!makeId) return;
     let active = true;
     api.get("/models", { params: { makeId } }).then(r => {
-      if (active) setModels(r.data);
+      if (!active) return;
+      setModels(r.data);
+      if (r.data.length === 1 && !modelId) setModelId(String(r.data[0].id));
     });
     return () => { active = false; };
-  }, [makeId]);
+  }, [makeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cascade: model → generations
   useEffect(() => {
     if (!modelId) return;
     let active = true;
     api.get("/generations", { params: { modelId } }).then(r => {
-      if (active) setGens(r.data);
+      if (!active) return;
+      setGens(r.data);
+      if (r.data.length === 1 && !genId) setGenId(String(r.data[0].id));
     });
     return () => { active = false; };
-  }, [modelId]);
+  }, [modelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cascade: generation → variants
   useEffect(() => {
-    if (!genId) return;
+    if (!genId) { setVariantsLoaded(false); return; }
+    setVariantsLoaded(false);
     let active = true;
     api.get("/variants", { params: { generationId: genId } }).then(r => {
-      if (active) setVariants(r.data);
+      if (!active) return;
+      setVariants(r.data);
+      setVariantsLoaded(true);
+      if (r.data.length === 1 && !variantId) setVariantId(String(r.data[0].id));
     });
     return () => { active = false; };
-  }, [genId]);
+  }, [genId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // If the user picked a make but didn't navigate all the way down to a variant,
+    // warn them — otherwise the vehicle hierarchy won't be saved.
+    if (makeId && !variantId) {
+      const noVariantsInCatalogue = genId && variantsLoaded && variants.length === 0;
+      const step = !modelId ? "model" : !genId ? "generation" : "variant";
+      setToast({
+        message: noVariantsInCatalogue
+          ? "This generation has no variants in the catalogue. Go to Catalogue → add Variants, then return here."
+          : `Please also select a ${step} to complete the vehicle hierarchy.`,
+        type: "error",
+      });
+      return;
+    }
     setLoading(true);
     try {
       await api.patch(`/vehicles/${id}`, {
@@ -155,7 +177,10 @@ export default function EditVehiclePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Hierarchy */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
-          <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Hierarchy</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Vehicle Hierarchy</p>
+            {!variantId && <p className="text-xs text-[var(--text-muted)]">Select Make → Model → Generation → Variant</p>}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Make</label>
@@ -204,6 +229,21 @@ export default function EditVehiclePage() {
               </select>
             </div>
           </div>
+
+          {/* Warning: generation chosen but no variants exist in catalogue */}
+          {genId && variantsLoaded && variants.length === 0 && (
+            <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-amber-400">No variants in catalogue for this generation</p>
+                <p className="text-xs text-amber-400/80 mt-0.5">
+                  Go to <strong className="font-semibold">Catalogue</strong> and add at least one Variant to this Generation before saving.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Vehicle details */}

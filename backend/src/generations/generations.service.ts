@@ -25,6 +25,10 @@ export class GenerationsService {
   create(data: Partial<Generation>) {
     return this.repo.save(this.repo.create(data));
   }
+  async update(id: number, data: Partial<Pick<Generation, 'name' | 'code' | 'yearStart' | 'yearEnd'>>) {
+    await this.repo.update(id, data);
+    return this.findOne(id);
+  }
   async remove(id: number) {
     await this.repo.delete(id);
   }

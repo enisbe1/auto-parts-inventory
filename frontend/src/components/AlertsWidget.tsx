@@ -12,6 +12,7 @@ interface StalePart {
 
 interface NegativeVehicle {
   id: number;
+  displayName: string;
   purchasePrice: number;
   revenue: number;
   netPL: number;
@@ -115,7 +116,7 @@ export default function AlertsWidget({ alerts }: AlertsWidgetProps) {
             {negativeVehicles.slice(0, 3).map((v) => (
               <div key={v.id} className="flex items-center gap-3 px-5 py-3.5 border-l-2 border-red-500/50">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">Vehicle #{v.id}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{v.displayName}</p>
                   <p className="text-xs text-[var(--text-muted)]">
                     Purchased: €{v.purchasePrice.toFixed(2)} &middot; Revenue: €{v.revenue.toFixed(2)}
                   </p>

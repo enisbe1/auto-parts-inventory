@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { Make, CarModel, Generation, Variant } from "@/lib/types";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -7,6 +7,133 @@ import Toast from "@/components/Toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 type Level = "makes" | "models" | "generations" | "variants";
+
+// ─── Module-scope constants — stable across renders ──────────────────────────
+const inp = "w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 disabled:opacity-40 disabled:cursor-not-allowed";
+const btn = "w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-40 transition-colors";
+
+// Column MUST live at module scope. If defined inside CataloguePage it gets a
+// new function reference on every render → React unmounts + remounts it →
+// every input inside loses focus after each keystroke.
+function Column({
+  title, subtitle, items, selectedId, onSelect, onDelete, onEdit, emptyMsg, addForm,
+}: {
+  title: string; subtitle?: string;
+  items: { id: number; primary: string; secondary?: string }[];
+  selectedId?: number;
+  onSelect?: (id: number) => void;
+  onDelete: (id: number, name: string) => void;
+  onEdit: (id: number, newName: string) => Promise<void>;
+  emptyMsg: string;
+  addForm: React.ReactNode;
+}) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const editRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = (e: React.MouseEvent, item: { id: number; primary: string }) => {
+    e.stopPropagation();
+    setEditingId(item.id);
+    setEditValue(item.primary);
+    // focus after render
+    setTimeout(() => editRef.current?.focus(), 0);
+  };
+
+  const saveEdit = async (id: number) => {
+    const trimmed = editValue.trim();
+    if (trimmed) await onEdit(id, trimmed);
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col overflow-hidden shadow-xl shadow-black/20">
+      <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-[var(--text-primary)] text-sm">{title}</span>
+          {subtitle && <span className="text-xs text-blue-400 font-medium">{subtitle}</span>}
+        </div>
+        <span className="text-xs text-[var(--text-muted)]">{items.length} items</span>
+      </div>
+      <div className="flex-1 overflow-y-auto max-h-72">
+        {items.length === 0 ? (
+          <p className="px-4 py-5 text-[var(--text-muted)] text-sm text-center">{emptyMsg}</p>
+        ) : (
+          <ul className="divide-y divide-[#1f1f23]">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                onClick={() => editingId !== item.id && onSelect?.(item.id)}
+                className={`flex items-center justify-between px-4 py-2.5 text-sm transition-colors group ${
+                  onSelect && editingId !== item.id ? "cursor-pointer hover:bg-white/[0.03]" : ""
+                } ${selectedId === item.id && editingId !== item.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""}`}
+              >
+                {editingId === item.id ? (
+                  /* ── Inline rename mode ── */
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0" onClick={e => e.stopPropagation()}>
+                    <input
+                      ref={editRef}
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") saveEdit(item.id); if (e.key === "Escape") cancelEdit(); }}
+                      className="flex-1 min-w-0 bg-[var(--surface-raised)] border border-blue-500/40 text-[var(--text-primary)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                    <button
+                      onClick={() => saveEdit(item.id)}
+                      className="text-emerald-400 hover:text-emerald-300 transition-colors text-xs font-medium shrink-0"
+                      title="Save (Enter)"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors text-xs shrink-0"
+                      title="Cancel (Esc)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  /* ── Normal display mode ── */
+                  <>
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-medium truncate ${selectedId === item.id ? "text-blue-400" : "text-zinc-200"}`}>
+                        {item.primary}
+                      </p>
+                      {item.secondary && (
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{item.secondary}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                      <button
+                        onClick={(e) => startEdit(e, item)}
+                        className="text-[var(--text-muted)] hover:text-blue-400 transition-colors"
+                        title="Rename"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(item.id, item.primary); }}
+                        className="text-[var(--text-muted)] hover:text-red-400 transition-colors text-xs"
+                        title="Delete"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="p-3 border-t border-[var(--border)] bg-[var(--surface)]/50">{addForm}</div>
+    </div>
+  );
+}
 
 export default function CataloguePage() {
   const { t } = useLanguage();
@@ -104,59 +231,23 @@ export default function CataloguePage() {
     finally { setAdding(false); }
   };
 
-  const inp = "w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 disabled:opacity-40 disabled:cursor-not-allowed";
-  const btn = "w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-40 transition-colors";
-
-  const Column = ({
-    title, subtitle, items, selectedId, onSelect, onDelete, emptyMsg, addForm,
-  }: {
-    title: string; subtitle?: string; items: { id: number; primary: string; secondary?: string }[];
-    selectedId?: number; onSelect?: (id: number) => void; onDelete: (id: number, name: string) => void;
-    emptyMsg: string; addForm: React.ReactNode;
-  }) => (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col overflow-hidden shadow-xl shadow-black/20">
-      <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-[var(--text-primary)] text-sm">{title}</span>
-          {subtitle && <span className="text-xs text-blue-400 font-medium">{subtitle}</span>}
-        </div>
-        <span className="text-xs text-[var(--text-muted)]">{items.length} items</span>
-      </div>
-      <div className="flex-1 overflow-y-auto max-h-64">
-        {items.length === 0 ? (
-          <p className="px-4 py-5 text-[var(--text-muted)] text-sm text-center">{emptyMsg}</p>
-        ) : (
-          <ul className="divide-y divide-[#1f1f23]">
-            {items.map((item) => (
-              <li
-                key={item.id}
-                onClick={() => onSelect?.(item.id)}
-                className={`flex items-center justify-between px-4 py-2.5 text-sm transition-colors group ${
-                  onSelect ? "cursor-pointer hover:bg-white/[0.03]" : ""
-                } ${selectedId === item.id ? "bg-blue-500/10 border-l-2 border-l-blue-500" : ""}`}
-              >
-                <div>
-                  <p className={`font-medium ${selectedId === item.id ? "text-blue-400" : "text-zinc-200"}`}>
-                    {item.primary}
-                  </p>
-                  {item.secondary && (
-                    <p className="text-xs text-[var(--text-muted)] mt-0.5">{item.secondary}</p>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDelete(item.id, item.primary); }}
-                  className="text-[var(--text-muted)] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2 text-xs"
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="p-3 border-t border-[var(--border)] bg-[var(--surface)]/50">{addForm}</div>
-    </div>
-  );
+  // ── Inline rename handlers ────────────────────────────────────────────────
+  const editMake = async (id: number, name: string) => {
+    try { await api.patch(`/makes/${id}`, { name }); loadMakes(); setToast({ message: "Make renamed", type: "success" }); }
+    catch { setToast({ message: "Rename failed", type: "error" }); }
+  };
+  const editModel = async (id: number, name: string) => {
+    try { await api.patch(`/models/${id}`, { name }); selMake && loadModels(selMake.id); setToast({ message: "Model renamed", type: "success" }); }
+    catch { setToast({ message: "Rename failed", type: "error" }); }
+  };
+  const editGen = async (id: number, name: string) => {
+    try { await api.patch(`/generations/${id}`, { name }); selModel && loadGens(selModel.id); setToast({ message: "Generation renamed", type: "success" }); }
+    catch { setToast({ message: "Rename failed", type: "error" }); }
+  };
+  const editVariant = async (id: number, name: string) => {
+    try { await api.patch(`/variants/${id}`, { name }); selGen && loadVariants(selGen.id); setToast({ message: "Variant renamed", type: "success" }); }
+    catch { setToast({ message: "Rename failed", type: "error" }); }
+  };
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -211,6 +302,7 @@ export default function CataloguePage() {
           selectedId={selMake?.id}
           onSelect={(id) => { const mk = makes.find((m) => m.id === id); mk && selectMake(mk); }}
           onDelete={(id, name) => setToDelete({ level: "makes", id, name })}
+          onEdit={editMake}
           emptyMsg="No makes yet"
           addForm={
             <form onSubmit={addMake} className="space-y-2">
@@ -228,6 +320,7 @@ export default function CataloguePage() {
           selectedId={selModel?.id}
           onSelect={(id) => { const m = models.find((m) => m.id === id); m && selectModel(m); }}
           onDelete={(id, name) => setToDelete({ level: "models", id, name })}
+          onEdit={editModel}
           emptyMsg={selMake ? "No models yet" : `← ${t.catalogue.noMakeSelected}`}
           addForm={
             <form onSubmit={addModel} className="space-y-2">
@@ -248,6 +341,7 @@ export default function CataloguePage() {
           selectedId={selGen?.id}
           onSelect={(id) => { const g = generations.find((g) => g.id === id); g && selectGen(g); }}
           onDelete={(id, name) => setToDelete({ level: "generations", id, name })}
+          onEdit={editGen}
           emptyMsg={selModel ? "No generations yet" : `← ${t.catalogue.noModelSelected}`}
           addForm={
             <form onSubmit={addGen} className="space-y-2">
@@ -267,6 +361,7 @@ export default function CataloguePage() {
           subtitle={selGen?.name}
           items={variants.map((v) => ({ id: v.id, primary: v.name, secondary: [v.engine, v.fuelType, v.powerKw ? `${v.powerKw} kW` : null].filter(Boolean).join(" · ") || undefined }))}
           onDelete={(id, name) => setToDelete({ level: "variants", id, name })}
+          onEdit={editVariant}
           emptyMsg={selGen ? "No variants yet" : `← ${t.catalogue.noGenSelected}`}
           addForm={
             <form onSubmit={addVariant} className="space-y-2">

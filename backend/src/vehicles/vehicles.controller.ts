@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } f
 import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class CreateVehicleDto {
@@ -12,7 +12,9 @@ class CreateVehicleDto {
   @IsOptional() @IsNumber() @Type(() => Number) mileage?: number;
   @IsOptional() @IsNumber() @Type(() => Number) purchasePrice?: number;
   @IsOptional() @IsString() purchaseDate?: string;
+  @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) photos?: string[];
 }
 
 @Controller('vehicles')

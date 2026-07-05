@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -34,16 +34,25 @@ export default function VehicleDetailPage() {
   const router  = useRouter();
   const { t }   = useLanguage();
   const [vehicle, setVehicle]   = useState<Vehicle | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Part | null>(null);
   const [delVehicle, setDelVeh] = useState(false);
   const [toast, setToast]       = useState<{ message: string; type: "success" | "error" } | null>(null);
   // Sell modal state
-  const [sellPart, setSellPart] = useState<Part | null>(null);
+  const [sellPart, setSellPart]   = useState<Part | null>(null);
+  const [sellLoading, setSellLoading] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ partId: number; newStatus: string } | null>(null);
+  // Category accordion — must be declared before any early return (Rules of Hooks)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const load = async () => {
-    const { data } = await api.get(`/vehicles/${id}`);
-    setVehicle(data);
+    try {
+      const { data } = await api.get(`/vehicles/${id}`);
+      setVehicle(data);
+      setLoadError(null);
+    } catch {
+      setLoadError("This vehicle could not be loaded. It may have been deleted.");
+    }
   };
 
   useEffect(() => {
@@ -74,9 +83,14 @@ export default function VehicleDetailPage() {
 
   const confirmSell = async (soldPrice: number | undefined) => {
     if (!pendingStatus) return;
-    await applyStatusUpdate(pendingStatus.partId, "sold", soldPrice);
-    setSellPart(null);
-    setPendingStatus(null);
+    setSellLoading(true);
+    try {
+      await applyStatusUpdate(pendingStatus.partId, "sold", soldPrice);
+    } finally {
+      setSellLoading(false);
+      setSellPart(null);
+      setPendingStatus(null);
+    }
   };
 
   const cancelSell = () => {
@@ -106,6 +120,46 @@ export default function VehicleDetailPage() {
       setDelVeh(false);
     }
   };
+
+  // useMemo must run every render — before any early return
+  const partsByCategory = useMemo(() => {
+    const allParts = vehicle?.parts ?? [];
+    const map = new Map<string, Part[]>();
+    for (const p of allParts) {
+      const key = p.category?.name ?? "__uncategorized__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return [...map.entries()].sort(([a], [b]) => {
+      if (a === "__uncategorized__") return 1;
+      if (b === "__uncategorized__") return -1;
+      return a.localeCompare(b);
+    });
+  }, [vehicle?.parts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleCategory = (key: string) =>
+    setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+
+  if (loadError) {
+    return (
+      <div className="p-8 max-w-md mx-auto text-center mt-16">
+        <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        </div>
+        <p className="text-[var(--text-primary)] font-medium mb-1">Vehicle not found</p>
+        <p className="text-[var(--text-muted)] text-sm mb-5">{loadError}</p>
+        <button onClick={() => router.push("/vehicles")}
+          className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+          Back to vehicles
+        </button>
+      </div>
+    );
+  }
 
   if (!vehicle) {
     return (
@@ -164,6 +218,7 @@ export default function VehicleDetailPage() {
       {sellPart && (
         <SellPartModal
           part={sellPart}
+          isLoading={sellLoading}
           onConfirm={confirmSell}
           onCancel={cancelSell}
         />
@@ -313,12 +368,16 @@ export default function VehicleDetailPage() {
         ))}
       </div>
 
-      {/* Parts table */}
+      {/* Parts — grouped by category */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <div>
             <h2 className="font-semibold text-[var(--text-primary)]">{t.vehicleDetail.partsInventory}</h2>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">{parts.length} part{parts.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              {parts.length} part{parts.length !== 1 ? "s" : ""}
+              {partsByCategory.length > 1 && ` · ${partsByCategory.length} categories`}
+            </p>
           </div>
           <Link
             href={`/parts/new?vehicleId=${id}`}
@@ -337,53 +396,86 @@ export default function VehicleDetailPage() {
             <p className="text-[var(--text-muted)] text-xs mt-1">Add parts from this vehicle using the button above</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[var(--surface)] border-b border-[var(--border-subtle)]">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Cond.</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Price</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.status}</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.actions}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-subtle)]">
-              {parts.map((p) => (
-                <tr key={p.id} className="hover:bg-black/[0.04] dark:hover:bg-white/[0.03] transition-colors">
-                  <td className="px-6 py-3.5 font-semibold text-[var(--text-primary)]">{p.name}</td>
-                  <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs">{p.category?.name || <span className="text-[var(--text-muted)]">—</span>}</td>
-                  <td className="px-6 py-3.5">
-                    <span className={conditionBadge(p.condition)}>{p.condition}</span>
-                  </td>
-                  <td className="px-6 py-3.5 font-medium text-[var(--text-primary)]">
-                    {p.price != null ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
-                  </td>
-                  <td className="px-6 py-3.5">
-                    {p.status === "sold" ? (
-                      <span className={statusBadge("sold")}>{t.status.sold}</span>
-                    ) : (
-                      <select
-                        value={p.status}
-                        onChange={(e) => handleStatusChange(p, e.target.value)}
-                        className="bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
+          <div className="divide-y divide-[var(--border)]">
+            {partsByCategory.map(([catKey, catParts]) => {
+              const isUncategorized = catKey === "__uncategorized__";
+              const label = isUncategorized ? "Uncategorized" : catKey;
+              const isCollapsed = !!collapsed[catKey];
+              return (
+                <div key={catKey}>
+                  {/* Category row — clickable to toggle */}
+                  <button
+                    onClick={() => toggleCategory(catKey)}
+                    className="w-full flex items-center justify-between px-6 py-3 bg-[var(--surface-raised)] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg
+                        className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                        fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
                       >
-                        <option value="available">{t.status.available}</option>
-                        <option value="reserved">{t.status.reserved}</option>
-                        <option value="sold">{t.status.sold}</option>
-                      </select>
-                    )}
-                  </td>
-                  <td className="px-6 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button onClick={() => router.push(`/parts/${p.id}/edit`)} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{t.common.edit}</button>
-                      <button onClick={() => setToDelete(p)} className="text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors">{t.common.delete}</button>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                      <span className={`text-xs font-semibold uppercase tracking-wider ${isUncategorized ? "text-[var(--text-muted)]" : "text-[var(--text-secondary)]"}`}>
+                        {label}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className="text-xs text-[var(--text-muted)] tabular-nums">
+                      {catParts.length} part{catParts.length !== 1 ? "s" : ""}
+                    </span>
+                  </button>
+
+                  {/* Parts table for this category */}
+                  {!isCollapsed && (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--border-subtle)]">
+                          <th className="px-6 py-2.5 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.parts.partName}</th>
+                          <th className="px-6 py-2.5 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.parts.condition}</th>
+                          <th className="px-6 py-2.5 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.parts.price}</th>
+                          <th className="px-6 py-2.5 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.common.status}</th>
+                          <th className="px-6 py-2.5 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.common.actions}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-subtle)]">
+                        {catParts.map((p) => (
+                          <tr key={p.id} className="hover:bg-black/[0.04] dark:hover:bg-white/[0.03] transition-colors">
+                            <td className="px-6 py-3.5 font-semibold text-[var(--text-primary)]">{p.name}</td>
+                            <td className="px-6 py-3.5">
+                              <span className={conditionBadge(p.condition)}>{(t.condition as Record<string, string>)[p.condition] ?? p.condition}</span>
+                            </td>
+                            <td className="px-6 py-3.5 font-medium text-[var(--text-primary)]">
+                              {p.price != null ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
+                            </td>
+                            <td className="px-6 py-3.5">
+                              {p.status === "sold" ? (
+                                <span className={statusBadge("sold")}>{t.status.sold}</span>
+                              ) : (
+                                <select
+                                  value={p.status}
+                                  onChange={(e) => handleStatusChange(p, e.target.value)}
+                                  className="bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition"
+                                >
+                                  <option value="available">{t.status.available}</option>
+                                  <option value="reserved">{t.status.reserved}</option>
+                                  <option value="sold">{t.status.sold}</option>
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-6 py-3.5 text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <button onClick={() => router.push(`/parts/${p.id}/edit`)} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{t.common.edit}</button>
+                                <button onClick={() => setToDelete(p)} className="text-xs font-medium text-[var(--text-muted)] hover:text-red-400 transition-colors">{t.common.delete}</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 

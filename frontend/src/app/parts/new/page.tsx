@@ -6,6 +6,72 @@ import api from '@/lib/api';
 import type { Vehicle, Category, Part } from '@/lib/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+// ─── Searchable vehicle picker ───────────────────────────────────────────────
+// Must be at module scope so it doesn't remount on every parent render.
+function vehicleLabel(v: Vehicle): string {
+  const vt = v.variant;
+  if (!vt) return `Vehicle #${v.id}`;
+  const g = vt.generation; const m = g?.model; const mk = m?.make;
+  return [mk?.name, m?.name, g?.name, vt.name, v.year ? `(${v.year})` : ''].filter(Boolean).join(' ');
+}
+
+function VehiclePicker({
+  vehicles, value, onChange, noVehicleLabel,
+}: {
+  vehicles: Vehicle[];
+  value: string;
+  onChange: (id: string) => void;
+  noVehicleLabel: string;
+}) {
+  const [query, setQuery] = useState('');
+  const q = query.toLowerCase();
+  const filtered = q
+    ? vehicles.filter(v => vehicleLabel(v).toLowerCase().includes(q))
+    : vehicles;
+  const selectedVehicle = vehicles.find(v => String(v.id) === value);
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Filter vehicles…"
+          className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl pl-9 pr-4 py-2 text-sm transition"
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 rounded-xl px-4 py-2.5 text-sm transition"
+        size={Math.min(filtered.length + 1, 6)}
+      >
+        <option value="">{noVehicleLabel}</option>
+        {filtered.map(v => (
+          <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>
+        ))}
+      </select>
+      {selectedVehicle && (
+        <p className="text-xs text-blue-400 font-medium">
+          ✓ {vehicleLabel(selectedVehicle)}
+          {' — '}
+          <button type="button" onClick={() => onChange('')} className="underline hover:text-blue-300 transition-colors">clear</button>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function NewPartContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,6 +90,7 @@ function NewPartContent() {
   const [notes, setNotes]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [toast, setToast]           = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [nameError, setNameError]   = useState(false);
 
   // Price inheritance state
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
@@ -81,16 +148,14 @@ function NewPartContent() {
     }
   };
 
-  const getVehicleLabel = (v: Vehicle) => {
-    const vt = v.variant;
-    if (!vt) return `Vehicle #${v.id}`;
-    const g = vt.generation; const m = g?.model; const mk = m?.make;
-    return [mk?.name, m?.name, g?.name, vt.name, v.year ? `(${v.year})` : ''].filter(Boolean).join(' ');
-  };
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setToast({ msg: 'Part name is required', type: 'error' }); return; }
+    if (!name.trim()) {
+      setNameError(true);
+      setToast({ msg: 'Part name is required', type: 'error' });
+      return;
+    }
+    setNameError(false);
     setLoading(true);
     try {
       await api.post('/parts', {
@@ -148,11 +213,12 @@ function NewPartContent() {
             </label>
             <input
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => { setName(e.target.value); if (e.target.value.trim()) setNameError(false); }}
               placeholder="e.g. N47 2.0 Diesel Engine"
               required
-              className={inp}
+              className={`${inp} ${nameError ? "border-red-500 ring-2 ring-red-500/30" : ""}`}
             />
+            {nameError && <p className="text-xs text-red-400 mt-1">Part name is required</p>}
             {/* Price inheritance banner */}
             {suggestedPrice != null && (
               <div className="mt-2 flex items-center justify-between bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3">
@@ -223,14 +289,10 @@ function NewPartContent() {
 
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newPart.vehicle}</label>
-            <select value={vehicleId} onChange={e => setVehicleId(e.target.value)} className={sel}>
-              <option value="">{t.newPart.noVehicle}</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{getVehicleLabel(v)}</option>
-              ))}
-            </select>
-            {vehicles.length === 0 && (
+            {vehicles.length === 0 ? (
               <p className="text-xs text-[var(--text-muted)] mt-1.5">No vehicles in inventory yet — <a href="/vehicles/new" className="text-blue-400 hover:underline">add one first</a></p>
+            ) : (
+              <VehiclePicker vehicles={vehicles} value={vehicleId} onChange={setVehicleId} noVehicleLabel={t.newPart.noVehicle} />
             )}
           </div>
 

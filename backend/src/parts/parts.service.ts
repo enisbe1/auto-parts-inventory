@@ -19,6 +19,8 @@ export class PartsService {
   async findAll(filters: {
     vehicleId?: number;
     categoryId?: number;
+    modelId?: number;
+    generationId?: number;
     status?: string;
     condition?: string;
     search?: string;
@@ -26,6 +28,43 @@ export class PartsService {
     limit?: number;
   }): Promise<PaginatedResult<Part>> {
     const { page = 1, limit = 20, ...rest } = filters;
+
+    // When filtering by model or generation we must JOIN through the vehicle hierarchy —
+    // TypeORM's simple where object can't traverse nested relations.
+    if (rest.modelId || rest.generationId) {
+      const qb = this.repo.createQueryBuilder('part')
+        .leftJoinAndSelect('part.vehicle',           'vehicle')
+        .leftJoinAndSelect('vehicle.variant',        'variant')
+        .leftJoinAndSelect('variant.generation',     'generation')
+        .leftJoinAndSelect('generation.model',       'model')
+        .leftJoinAndSelect('model.make',             'make')
+        .leftJoinAndSelect('part.category',          'category');
+
+      // Primary hierarchy filter — generationId is more specific than modelId
+      if (rest.modelId && rest.generationId) {
+        qb.where('model.id = :modelId AND generation.id = :generationId',
+                 { modelId: rest.modelId, generationId: rest.generationId });
+      } else if (rest.generationId) {
+        qb.where('generation.id = :generationId', { generationId: rest.generationId });
+      } else {
+        qb.where('model.id = :modelId', { modelId: rest.modelId });
+      }
+
+      if (rest.vehicleId)  qb.andWhere('part.vehicleId  = :vid',  { vid:  rest.vehicleId });
+      if (rest.categoryId) qb.andWhere('part.categoryId = :cid',  { cid:  rest.categoryId });
+      if (rest.status)     qb.andWhere('part.status     = :st',   { st:   rest.status });
+      if (rest.condition)  qb.andWhere('part.condition  = :cond', { cond: rest.condition });
+      if (rest.search)     qb.andWhere('part.name ILIKE :q',      { q:    `%${rest.search}%` });
+
+      qb.orderBy('part.createdAt', 'DESC')
+        .skip((page - 1) * limit)
+        .take(limit);
+
+      const [data, total] = await qb.getManyAndCount();
+      return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    }
+
+    // Default path — no model filter
     const where: any = {};
     if (rest.vehicleId) where.vehicleId = rest.vehicleId;
     if (rest.categoryId) where.categoryId = rest.categoryId;

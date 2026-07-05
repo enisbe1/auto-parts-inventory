@@ -20,6 +20,10 @@ export class VariantsService {
   create(data: Partial<Variant>) {
     return this.repo.save(this.repo.create(data));
   }
+  async update(id: number, data: Partial<Pick<Variant, 'name' | 'engine' | 'fuelType' | 'powerKw'>>) {
+    await this.repo.update(id, data);
+    return this.findOne(id);
+  }
   async remove(id: number) {
     await this.repo.delete(id);
   }

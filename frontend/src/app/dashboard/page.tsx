@@ -24,16 +24,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
-      const [vRes, pRes, avRes, soldRes] = await Promise.all([
-        api.get("/vehicles", { params: { page: 1, limit: 1 } }),
-        api.get("/parts",    { params: { page: 1, limit: 5 } }),
-        api.get("/parts",    { params: { status: "available", page: 1, limit: 1 } }),
-        api.get("/parts",    { params: { status: "sold",      page: 1, limit: 1 } }),
-      ]);
-      setVehicleMeta(vRes.data.meta);
-      setPartMeta(pRes.data.meta);
-      setRecentParts(pRes.data.data);
-      setStats({ available: avRes.data.meta.total, sold: soldRes.data.meta.total });
+      try {
+        const [vRes, pRes, avRes, soldRes] = await Promise.all([
+          api.get("/vehicles", { params: { page: 1, limit: 1 } }),
+          api.get("/parts",    { params: { page: 1, limit: 5 } }),
+          api.get("/parts",    { params: { status: "available", page: 1, limit: 1 } }),
+          api.get("/parts",    { params: { status: "sold",      page: 1, limit: 1 } }),
+        ]);
+        setVehicleMeta(vRes.data.meta);
+        setPartMeta(pRes.data.meta);
+        setRecentParts(pRes.data.data);
+        setStats({ available: avRes.data.meta.total, sold: soldRes.data.meta.total });
+      } catch {
+        // Core stats failed — components will show "—" placeholders
+      }
+      // Activity and alerts are optional — failures don't affect the rest of the dashboard
       api.get('/activity?limit=5').then(r => setActivities(r.data)).catch(() => {});
       api.get('/alerts').then(r => setAlerts(r.data)).catch(() => {});
     })();
@@ -167,7 +172,7 @@ export default function DashboardPage() {
                   {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
                 </td>
                 <td className="px-6 py-3.5">
-                  <span className={statusBadge(p.status)}>{p.status}</span>
+                  <span className={statusBadge(p.status)}>{(t.status as Record<string, string>)[p.status] ?? p.status}</span>
                 </td>
               </tr>
             ))}

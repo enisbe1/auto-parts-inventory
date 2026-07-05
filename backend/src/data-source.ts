@@ -10,6 +10,7 @@ import { Vehicle } from './vehicles/vehicle.entity';
 import { Part } from './parts/part.entity';
 import { Category } from './categories/category.entity';
 import { Activity } from './activity/activity.entity';
+import { ManualEntry } from './manual-entries/manual-entry.entity';
 
 dotenv.config();
 
@@ -20,7 +21,7 @@ export default new DataSource({
   username: process.env.DB_USERNAME ?? 'postgres',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME     ?? 'autoparts',
-  entities: [User, Make, CarModel, Generation, Variant, Vehicle, Part, Category, Activity],
+  entities: [User, Make, CarModel, Generation, Variant, Vehicle, Part, Category, Activity, ManualEntry],
   migrations: ['src/migrations/*.ts'],
   migrationsTableName: 'typeorm_migrations',
 });

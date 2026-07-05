@@ -135,13 +135,13 @@ function SearchContent() {
                   <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs">{p.category?.name || <span className="text-[var(--text-muted)]">—</span>}</td>
                   <td className="px-6 py-3.5 text-xs text-[var(--text-secondary)] max-w-[160px] truncate">{vehicleLabel(p)}</td>
                   <td className="px-6 py-3.5">
-                    <span className={conditionBadge(p.condition)}>{p.condition}</span>
+                    <span className={conditionBadge(p.condition)}>{(t.condition as Record<string, string>)[p.condition] ?? p.condition}</span>
                   </td>
                   <td className="px-6 py-3.5 font-medium text-[var(--text-primary)]">
                     {p.price ? `€${Number(p.price).toFixed(2)}` : <span className="text-[var(--text-muted)]">—</span>}
                   </td>
                   <td className="px-6 py-3.5">
-                    <span className={statusBadge(p.status)}>{p.status}</span>
+                    <span className={statusBadge(p.status)}>{(t.status as Record<string, string>)[p.status] ?? p.status}</span>
                   </td>
                 </tr>
               ))}

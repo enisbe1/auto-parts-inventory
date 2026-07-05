@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LANG_NAMES, type Lang } from "@/lib/i18n";
@@ -61,6 +62,9 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const { lang, setLang, t } = useLanguage();
   const { user, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  // Defer user-badge rendering until after hydration to prevent SSR mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const logout = () => {
     localStorage.removeItem("access_token");
@@ -207,7 +211,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           </svg>
           {t.nav.logout}
         </button>
-        {user && (
+        {mounted && user && (
           <div className="px-3 mt-2">
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
               isAdmin ? 'bg-blue-500/15 text-blue-400' : 'bg-zinc-500/15 text-zinc-500'

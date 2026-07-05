@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import api from "@/lib/api";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,79 +11,75 @@ interface Vehicle {
   purchasePrice: string | null;
   purchaseDate: string | null;
   createdAt: string;
-  variant?: {
-    name: string;
-    generation?: {
-      name: string;
-      model?: { name: string; make?: { name: string } };
-    };
-  };
+  variant?: { generation?: { model?: { name: string; make?: { name: string } } } };
 }
 
 interface SoldPart {
   id: number;
   name: string;
-  partNumber?: string;
   price: string | null;
   soldAt: string | null;
   createdAt: string;
-  vehicle?: {
-    id: number;
-    year: number;
-    variant?: { generation?: { model?: { name: string; make?: { name: string } } } };
-  };
+  vehicle?: { year: number; variant?: { generation?: { model?: { name: string; make?: { name: string } } } } };
   category?: { name: string };
 }
 
-interface Expense {
-  id: string;
+interface ManualEntry {
+  id: number;
+  type: "income" | "expense";
   date: string;
   description: string;
   category: string;
-  amount: number;
+  amount: string;
+  notes?: string;
 }
 
-type MainTab = "sellings" | "purchases" | "other";
+type MainTab = "sellings" | "purchases";
+
+interface UnifiedItem {
+  key: string;
+  date: string;
+  label: string;
+  sub: string;
+  amount: number;
+  amtCls: string;
+  badgeText: string;
+  badgeCls: string;
+  onDelete?: () => void;
+}
 type Granularity = "day" | "month" | "year";
+type FormState = { date: string; description: string; category: string; amount: string; notes: string };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Locale map for Intl month names ─────────────────────────────────────────
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const EXPENSE_CATS = [
-  "Rent","Utilities","Tools & Equipment","Marketing",
-  "Shipping","Insurance","Salaries","Repairs","Other",
-];
+const localeMap: Record<string, string> = { en: "en-US", de: "de-DE", al: "sq-AL" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(n: number | string | null | undefined) {
+const fmt = (n: number | string | null | undefined) => {
   const v = parseFloat(String(n ?? 0));
   return isNaN(v) ? "€0.00" : `€${v.toFixed(2)}`;
-}
+};
 
-function vehicleName(v: Vehicle) {
+const vehicleName = (v: Vehicle) => {
   const make  = v.variant?.generation?.model?.make?.name ?? "";
   const model = v.variant?.generation?.model?.name ?? "";
   return `${v.year} ${make} ${model}`.trim() || `Vehicle #${v.id}`;
-}
+};
 
-function partVehicle(p: SoldPart) {
+const partVehicle = (p: SoldPart) => {
   const make  = p.vehicle?.variant?.generation?.model?.make?.name ?? "";
   const model = p.vehicle?.variant?.generation?.model?.name ?? "";
-  const year  = p.vehicle?.year ?? "";
-  return `${year} ${make} ${model}`.trim();
-}
+  return `${p.vehicle?.year ?? ""} ${make} ${model}`.trim();
+};
 
-function toDateStr(s: string | null | undefined): string {
+const toDateStr = (s: string | null | undefined) => {
   if (!s) return "";
   try { return new Date(s).toISOString().slice(0, 10); } catch { return ""; }
-}
+};
 
-function vehicleDate(v: Vehicle) {
-  return v.purchaseDate && v.purchaseDate.length >= 10
-    ? v.purchaseDate.slice(0, 10)
-    : toDateStr(v.createdAt);
-}
+const vehicleDate = (v: Vehicle) =>
+  (v.purchaseDate && v.purchaseDate.length >= 10) ? v.purchaseDate.slice(0, 10) : toDateStr(v.createdAt);
 
 function groupByDate<T>(items: T[], getDate: (i: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -107,43 +104,104 @@ function groupByMonth<T>(items: T[], getDate: (i: T) => string): Map<number, T[]
   return new Map([...map.entries()].sort((a, b) => b[0] - a[0]));
 }
 
-function sumV(vs: Vehicle[]) {
-  return vs.reduce((a, v) => a + parseFloat(v.purchasePrice ?? "0"), 0);
-}
-function sumP(ps: SoldPart[]) {
-  return ps.reduce((a, p) => a + parseFloat(p.price ?? "0"), 0);
-}
-function sumE(es: Expense[]) {
-  return es.reduce((a, e) => a + e.amount, 0);
+const sumV  = (vs: Vehicle[])     => vs.reduce((a, v) => a + parseFloat(v.purchasePrice ?? "0"), 0);
+const sumP  = (ps: SoldPart[])    => ps.reduce((a, p) => a + parseFloat(p.price ?? "0"), 0);
+const sumM  = (ms: ManualEntry[]) => ms.reduce((a, m) => a + parseFloat(m.amount ?? "0"), 0);
+
+// ─── Module-scope CSS (prevents class recreation on every render) ─────────────
+
+const formInputCls = "w-full px-3 py-2 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+// ─── AddEntryForm — defined OUTSIDE FinancesPage to prevent remount on state changes ──
+
+interface AddEntryFormLabels {
+  title: string; date: string; description: string; category: string;
+  amount: string; add: string; incomePlaceholder: string; expensePlaceholder: string;
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+function AddEntryForm({ type, cats, form, setForm, onAdd, saving, labels }: {
+  type: "income" | "expense";
+  cats: readonly string[];
+  form: FormState;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  onAdd: () => void;
+  saving: boolean;
+  labels: AddEntryFormLabels;
+}) {
+  const placeholder = type === "income" ? labels.incomePlaceholder : labels.expensePlaceholder;
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5 mb-6">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">{labels.title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">{labels.date}</label>
+          <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className={formInputCls} />
+        </div>
+        <div className="lg:col-span-2">
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">{labels.description}</label>
+          <input
+            type="text"
+            value={form.description}
+            onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+            placeholder={placeholder}
+            onKeyDown={e => e.key === "Enter" && onAdd()}
+            className={formInputCls}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">{labels.category}</label>
+          <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} className={formInputCls}>
+            {cats.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">{labels.amount}</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={form.amount}
+              onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
+              placeholder="0.00" min="0" step="0.01"
+              onKeyDown={e => e.key === "Enter" && onAdd()}
+              className={`${formInputCls} flex-1`}
+            />
+            <button
+              onClick={onAdd}
+              disabled={saving}
+              className={`px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all disabled:opacity-50 ${
+                type === "income" ? "bg-green-600 hover:bg-green-500" : "bg-orange-600 hover:bg-orange-500"
+              }`}
+            >
+              {labels.add}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg
-      className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${open ? "rotate-90" : ""}`}
-      fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
-    >
+    <svg className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${open ? "rotate-90" : ""}`}
+      fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
     </svg>
   );
 }
 
-function RowHeader({
-  date, label, count, noun, total, colorCls, open, onToggle,
-}: {
-  date: string; label?: string; count: number; noun: string;
+function RowHeader({ label, count, noun, total, colorCls, open, onToggle }: {
+  label: string; count: number; noun: string;
   total: number; colorCls: string; open: boolean; onToggle: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
-      className="flex items-center justify-between w-full px-4 py-3 hover:bg-[var(--surface-raised)] transition-all text-left"
-    >
+    <button onClick={onToggle}
+      className="flex items-center justify-between w-full px-4 py-3 hover:bg-[var(--surface-raised)] transition-all text-left">
       <div className="flex items-center gap-3">
         <ChevronIcon open={open} />
-        <p className="text-sm font-medium text-[var(--text-primary)]">{label ?? date}</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
         <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-raised)] px-2 py-0.5 rounded-full">
           {count} {noun}{count !== 1 ? "s" : ""}
         </span>
@@ -153,625 +211,16 @@ function RowHeader({
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function FinancesPage() {
-  const now = new Date();
-
-  const [mainTab,     setMainTab]     = useState<MainTab>("sellings");
-  const [granularity, setGranularity] = useState<Granularity>("month");
-  const [expGran,     setExpGran]     = useState<Granularity>("month");
-
-  const [selectedDate,  setSelectedDate]  = useState(now.toISOString().slice(0, 10));
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [selectedYear,  setSelectedYear]  = useState(now.getFullYear());
-
-  const [vehicles,  setVehicles]  = useState<Vehicle[]>([]);
-  const [soldParts, setSoldParts] = useState<SoldPart[]>([]);
-  const [loadingV,  setLoadingV]  = useState(false);
-  const [loadingP,  setLoadingP]  = useState(false);
-
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [newExp, setNewExp] = useState({
-    date: now.toISOString().slice(0, 10),
-    description: "",
-    category: "Other",
-    amount: "",
-  });
-
-  // ── Data fetching ────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (mainTab !== "purchases" || vehicles.length) return;
-    setLoadingV(true);
-    api.get("/vehicles?limit=9999&page=1")
-      .then(r => setVehicles(r.data?.data ?? r.data ?? []))
-      .finally(() => setLoadingV(false));
-  }, [mainTab, vehicles.length]);
-
-  useEffect(() => {
-    if (mainTab !== "sellings" || soldParts.length) return;
-    setLoadingP(true);
-    api.get("/parts?status=sold&limit=9999&page=1")
-      .then(r => setSoldParts(r.data?.data ?? r.data ?? []))
-      .finally(() => setLoadingP(false));
-  }, [mainTab, soldParts.length]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ap_expenses");
-      if (raw) setExpenses(JSON.parse(raw));
-    } catch {}
-  }, []);
-
-  // ── Expense helpers ──────────────────────────────────────────────────────────
-
-  const saveExpenses = (list: Expense[]) => {
-    setExpenses(list);
-    localStorage.setItem("ap_expenses", JSON.stringify(list));
-  };
-
-  const addExpense = () => {
-    const amount = parseFloat(newExp.amount);
-    if (!newExp.description.trim() || isNaN(amount) || amount <= 0) return;
-    saveExpenses([...expenses, {
-      id: `${Date.now()}-${Math.random()}`,
-      date: newExp.date,
-      description: newExp.description.trim(),
-      category: newExp.category,
-      amount,
-    }]);
-    setNewExp(p => ({ ...p, description: "", amount: "" }));
-  };
-
-  const deleteExpense = (id: string) => saveExpenses(expenses.filter(e => e.id !== id));
-
-  const toggleRow = (key: string) =>
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-
-  // ── Derived: Purchases ───────────────────────────────────────────────────────
-
-  const vForDay = useMemo(() =>
-    vehicles
-      .filter(v => vehicleDate(v) === selectedDate)
-      .sort((a, b) => vehicleDate(b).localeCompare(vehicleDate(a))),
-  [vehicles, selectedDate]);
-
-  const vForMonth = useMemo(() => {
-    const f = vehicles.filter(v => {
-      const d = vehicleDate(v);
-      const [y, m] = d.split("-").map(Number);
-      return y === selectedYear && m === selectedMonth;
-    });
-    return groupByDate(f, vehicleDate);
-  }, [vehicles, selectedYear, selectedMonth]);
-
-  const vForYear = useMemo(() => {
-    const f = vehicles.filter(v => parseInt(vehicleDate(v).split("-")[0]) === selectedYear);
-    return groupByMonth(f, vehicleDate);
-  }, [vehicles, selectedYear]);
-
-  // ── Derived: Sellings ────────────────────────────────────────────────────────
-
-  const soldDate = (p: SoldPart) => toDateStr(p.soldAt ?? p.createdAt);
-
-  const pForDay = useMemo(() =>
-    soldParts
-      .filter(p => soldDate(p) === selectedDate)
-      .sort((a, b) => soldDate(b).localeCompare(soldDate(a))),
-  [soldParts, selectedDate]);
-
-  const pForMonth = useMemo(() => {
-    const f = soldParts.filter(p => {
-      const d = soldDate(p);
-      const [y, m] = d.split("-").map(Number);
-      return y === selectedYear && m === selectedMonth;
-    });
-    return groupByDate(f, soldDate);
-  }, [soldParts, selectedYear, selectedMonth]);
-
-  const pForYear = useMemo(() => {
-    const f = soldParts.filter(p => parseInt(soldDate(p).split("-")[0]) === selectedYear);
-    return groupByMonth(f, soldDate);
-  }, [soldParts, selectedYear]);
-
-  // ── Derived: Expenses ────────────────────────────────────────────────────────
-
-  const eForDay = useMemo(() =>
-    expenses.filter(e => e.date === selectedDate),
-  [expenses, selectedDate]);
-
-  const eForMonth = useMemo(() => {
-    const f = expenses.filter(e => {
-      const [y, m] = e.date.split("-").map(Number);
-      return y === selectedYear && m === selectedMonth;
-    });
-    return groupByDate(f, e => e.date);
-  }, [expenses, selectedYear, selectedMonth]);
-
-  const eForYear = useMemo(() => {
-    const f = expenses.filter(e => parseInt(e.date.split("-")[0]) === selectedYear);
-    return groupByMonth(f, e => e.date);
-  }, [expenses, selectedYear]);
-
-  // ── Shared classes ───────────────────────────────────────────────────────────
-
-  const tabCls = (a: boolean) =>
-    `px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-      a ? "bg-blue-600/10 text-blue-400 ring-1 ring-blue-500/20"
-        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
-    }`;
-
-  const granCls = (a: boolean) =>
-    `px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
-      a ? "bg-[var(--surface-raised)] text-[var(--text-primary)] ring-1 ring-[var(--border)]"
-        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-    }`;
-
-  const inputCls = "px-3 py-1.5 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
-
-  // ── Date pickers ─────────────────────────────────────────────────────────────
-
-  const DatePicker = ({ g }: { g: Granularity }) => (
-    <div className="flex items-center gap-2 flex-wrap">
-      {g === "day" && (
-        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className={inputCls} />
-      )}
-      {g === "month" && (
-        <>
-          <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))} className={inputCls}>
-            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-          </select>
-          <input type="number" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className={`${inputCls} w-24`} />
-        </>
-      )}
-      {g === "year" && (
-        <input type="number" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className={`${inputCls} w-28`} />
-      )}
-    </div>
-  );
-
-  // ── Render: Purchases ─────────────────────────────────────────────────────────
-
-  function renderPurchases() {
-    if (loadingV) return <Spinner label="Loading vehicles…" />;
-
-    if (granularity === "day") {
-      return (
-        <div>
-          <SummaryLine count={vForDay.length} noun="vehicle" total={sumV(vForDay)} colorCls="text-[var(--text-primary)]" label={`on ${selectedDate}`} />
-          {vForDay.length === 0
-            ? <Empty msg="No vehicles purchased on this date" />
-            : <div className="space-y-2">
-                {vForDay.map(v => (
-                  <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)]">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{vehicleName(v)}</p>
-                      <p className="text-xs text-[var(--text-muted)]">Purchased {vehicleDate(v)}</p>
-                    </div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">{fmt(v.purchasePrice)}</p>
-                  </div>
-                ))}
-              </div>
-          }
-        </div>
-      );
-    }
-
-    if (granularity === "month") {
-      const allV = [...vForMonth.values()].flat();
-      return (
-        <div>
-          <SummaryLine count={allV.length} noun="vehicle" total={sumV(allV)} colorCls="text-[var(--text-primary)]"
-            label={`in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} totalLabel="Month total" />
-          {vForMonth.size === 0
-            ? <Empty msg={`No purchases in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} />
-            : <div className="space-y-1">
-                {[...vForMonth.entries()].map(([date, vs]) => {
-                  const key = `p-m-${date}`;
-                  const open = expandedRows.has(key);
-                  return (
-                    <div key={date} className="rounded-lg border border-[var(--border)] overflow-hidden">
-                      <RowHeader date={date} count={vs.length} noun="vehicle" total={sumV(vs)}
-                        colorCls="text-[var(--text-primary)]" open={open} onToggle={() => toggleRow(key)} />
-                      {open && (
-                        <div className="border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
-                          {vs.map(v => (
-                            <div key={v.id} className="flex items-center justify-between px-6 py-2.5 hover:bg-[var(--surface-raised)] transition-all">
-                              <p className="text-sm text-[var(--text-primary)]">{vehicleName(v)}</p>
-                              <p className="text-sm text-[var(--text-secondary)]">{fmt(v.purchasePrice)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-          }
-        </div>
-      );
-    }
-
-    // Year
-    const allV = [...vForYear.values()].flat();
-    return (
-      <div>
-        <SummaryLine count={allV.length} noun="vehicle" total={sumV(allV)} colorCls="text-[var(--text-primary)]"
-          label={`in ${selectedYear}`} totalLabel="Year total" />
-        {vForYear.size === 0
-          ? <Empty msg={`No purchases in ${selectedYear}`} />
-          : <div className="space-y-1">
-              {[...vForYear.entries()].map(([month, vs]) => {
-                const key = `p-y-${month}`;
-                const open = expandedRows.has(key);
-                const byDay = groupByDate(vs, vehicleDate);
-                return (
-                  <div key={month} className="rounded-lg border border-[var(--border)] overflow-hidden">
-                    <RowHeader date={`${month}`} label={`${MONTHS[month - 1]} ${selectedYear}`}
-                      count={vs.length} noun="vehicle" total={sumV(vs)}
-                      colorCls="text-[var(--text-primary)]" open={open} onToggle={() => toggleRow(key)} />
-                    {open && (
-                      <div className="border-t border-[var(--border-subtle)]">
-                        {[...byDay.entries()].map(([date, dayVs]) => (
-                          <div key={date}>
-                            <div className="flex justify-between px-6 py-2 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
-                              <p className="text-xs font-semibold text-[var(--text-muted)]">{date}</p>
-                              <p className="text-xs font-semibold text-[var(--text-muted)]">{fmt(sumV(dayVs))}</p>
-                            </div>
-                            {dayVs.map(v => (
-                              <div key={v.id} className="flex items-center justify-between px-8 py-2 hover:bg-[var(--surface-raised)] border-b border-[var(--border-subtle)] last:border-0 transition-all">
-                                <p className="text-sm text-[var(--text-primary)]">{vehicleName(v)}</p>
-                                <p className="text-sm text-[var(--text-secondary)]">{fmt(v.purchasePrice)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Render: Sellings ──────────────────────────────────────────────────────────
-
-  function renderSellings() {
-    if (loadingP) return <Spinner label="Loading sold parts…" />;
-
-    if (granularity === "day") {
-      return (
-        <div>
-          <SummaryLine count={pForDay.length} noun="part" total={sumP(pForDay)} colorCls="text-green-400" label={`sold on ${selectedDate}`} />
-          {pForDay.length === 0
-            ? <Empty msg="No parts sold on this date" />
-            : <div className="space-y-2">
-                {pForDay.map(p => (
-                  <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)]">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{p.name}</p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {partVehicle(p) ? `From ${partVehicle(p)}` : ""}
-                        {p.category?.name ? ` · ${p.category.name}` : ""}
-                      </p>
-                    </div>
-                    <p className="text-sm font-semibold text-green-400">{fmt(p.price)}</p>
-                  </div>
-                ))}
-              </div>
-          }
-        </div>
-      );
-    }
-
-    if (granularity === "month") {
-      const allP = [...pForMonth.values()].flat();
-      return (
-        <div>
-          <SummaryLine count={allP.length} noun="part" total={sumP(allP)} colorCls="text-green-400"
-            label={`sold in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} totalLabel="Month revenue" />
-          {pForMonth.size === 0
-            ? <Empty msg={`No sales in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} />
-            : <div className="space-y-1">
-                {[...pForMonth.entries()].map(([date, ps]) => {
-                  const key = `s-m-${date}`;
-                  const open = expandedRows.has(key);
-                  return (
-                    <div key={date} className="rounded-lg border border-[var(--border)] overflow-hidden">
-                      <RowHeader date={date} count={ps.length} noun="part" total={sumP(ps)}
-                        colorCls="text-green-400" open={open} onToggle={() => toggleRow(key)} />
-                      {open && (
-                        <div className="border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
-                          {ps.map(p => (
-                            <div key={p.id} className="flex items-center justify-between px-6 py-2.5 hover:bg-[var(--surface-raised)] transition-all">
-                              <div>
-                                <p className="text-sm text-[var(--text-primary)]">{p.name}</p>
-                                {partVehicle(p) && <p className="text-xs text-[var(--text-muted)]">From {partVehicle(p)}</p>}
-                              </div>
-                              <p className="text-sm text-green-400">{fmt(p.price)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-          }
-        </div>
-      );
-    }
-
-    // Year
-    const allP = [...pForYear.values()].flat();
-    return (
-      <div>
-        <SummaryLine count={allP.length} noun="part" total={sumP(allP)} colorCls="text-green-400"
-          label={`sold in ${selectedYear}`} totalLabel="Year revenue" />
-        {pForYear.size === 0
-          ? <Empty msg={`No sales in ${selectedYear}`} />
-          : <div className="space-y-1">
-              {[...pForYear.entries()].map(([month, ps]) => {
-                const key = `s-y-${month}`;
-                const open = expandedRows.has(key);
-                const byDay = groupByDate(ps, soldDate);
-                return (
-                  <div key={month} className="rounded-lg border border-[var(--border)] overflow-hidden">
-                    <RowHeader date={`${month}`} label={`${MONTHS[month - 1]} ${selectedYear}`}
-                      count={ps.length} noun="part" total={sumP(ps)}
-                      colorCls="text-green-400" open={open} onToggle={() => toggleRow(key)} />
-                    {open && (
-                      <div className="border-t border-[var(--border-subtle)]">
-                        {[...byDay.entries()].map(([date, dayPs]) => (
-                          <div key={date}>
-                            <div className="flex justify-between px-6 py-2 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
-                              <p className="text-xs font-semibold text-[var(--text-muted)]">{date}</p>
-                              <p className="text-xs font-semibold text-green-400/70">{fmt(sumP(dayPs))}</p>
-                            </div>
-                            {dayPs.map(p => (
-                              <div key={p.id} className="flex items-center justify-between px-8 py-2 hover:bg-[var(--surface-raised)] border-b border-[var(--border-subtle)] last:border-0 transition-all">
-                                <div>
-                                  <p className="text-sm text-[var(--text-primary)]">{p.name}</p>
-                                  {partVehicle(p) && <p className="text-xs text-[var(--text-muted)]">From {partVehicle(p)}</p>}
-                                </div>
-                                <p className="text-sm text-green-400">{fmt(p.price)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-        }
-      </div>
-    );
-  }
-
-  // ── Render: Other Spendings ───────────────────────────────────────────────────
-
-  function renderOtherSpendings() {
-    const renderExpList = (es: Expense[], nested = false) =>
-      es.map(e => (
-        <div key={e.id}
-          className={`flex items-center justify-between py-2.5 hover:bg-[var(--surface-raised)] group transition-all ${nested ? "px-6 border-b border-[var(--border-subtle)] last:border-0" : "px-4 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] mb-2"}`}
-        >
-          <div>
-            <p className="text-sm text-[var(--text-primary)]">{e.description}</p>
-            <p className="text-xs text-[var(--text-muted)]">{e.category}{nested ? "" : ` · ${e.date}`}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <p className="text-sm font-semibold text-orange-400">{fmt(e.amount)}</p>
-            <button
-              onClick={() => deleteExpense(e.id)}
-              className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      ));
-
-    const renderGrouped = (
-      map: Map<string | number, Expense[]>,
-      keyPrefix: string,
-      labelFn: (k: string | number) => string,
-    ) => (
-      <div className="space-y-1">
-        {[...map.entries()].map(([k, es]) => {
-          const rowKey = `${keyPrefix}-${k}`;
-          const open = expandedRows.has(rowKey);
-          return (
-            <div key={rowKey} className="rounded-lg border border-[var(--border)] overflow-hidden">
-              <RowHeader date={String(k)} label={labelFn(k)} count={es.length} noun="expense"
-                total={sumE(es)} colorCls="text-orange-400" open={open} onToggle={() => toggleRow(rowKey)} />
-              {open && (
-                <div className="border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
-                  {renderExpList(es, true)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-
-    return (
-      <div className="space-y-6">
-        {/* Add form */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] p-5">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Add Expense</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Date</label>
-              <input type="date" value={newExp.date} onChange={e => setNewExp(p => ({ ...p, date: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Description</label>
-              <input type="text" value={newExp.description} onChange={e => setNewExp(p => ({ ...p, description: e.target.value }))}
-                placeholder="e.g. Monthly rent"
-                onKeyDown={e => e.key === "Enter" && addExpense()}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Category</label>
-              <select value={newExp.category} onChange={e => setNewExp(p => ({ ...p, category: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-                {EXPENSE_CATS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Amount (€)</label>
-              <div className="flex gap-2">
-                <input type="number" value={newExp.amount} onChange={e => setNewExp(p => ({ ...p, amount: e.target.value }))}
-                  placeholder="0.00" min="0" step="0.01"
-                  onKeyDown={e => e.key === "Enter" && addExpense()}
-                  className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                <button onClick={addExpense}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all">
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* All-time total badge */}
-        {expenses.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/5 border border-orange-500/20">
-            <svg className="w-5 h-5 text-orange-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75" />
-            </svg>
-            <div>
-              <p className="text-sm font-semibold text-orange-400">All-time total: {fmt(sumE(expenses))}</p>
-              <p className="text-xs text-[var(--text-muted)]">{expenses.length} expense record{expenses.length !== 1 ? "s" : ""}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Granularity + date pickers */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex gap-1 p-1 rounded-lg bg-[var(--background)] border border-[var(--border-subtle)]">
-            {(["day", "month", "year"] as Granularity[]).map(g => (
-              <button key={g} onClick={() => setExpGran(g)} className={granCls(expGran === g)}>
-                {g.charAt(0).toUpperCase() + g.slice(1)}
-              </button>
-            ))}
-          </div>
-          <DatePicker g={expGran} />
-        </div>
-
-        {/* List */}
-        {expGran === "day" && (
-          <div>
-            <SummaryLine count={eForDay.length} noun="expense" total={sumE(eForDay)} colorCls="text-orange-400" label={`on ${selectedDate}`} />
-            {eForDay.length === 0
-              ? <Empty msg="No expenses on this date" />
-              : renderExpList(eForDay)
-            }
-          </div>
-        )}
-        {expGran === "month" && (
-          <div>
-            <SummaryLine count={[...eForMonth.values()].flat().length} noun="expense"
-              total={sumE([...eForMonth.values()].flat())} colorCls="text-orange-400"
-              label={`in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} totalLabel="Month total" />
-            {eForMonth.size === 0
-              ? <Empty msg={`No expenses in ${MONTHS[selectedMonth - 1]} ${selectedYear}`} />
-              : renderGrouped(eForMonth as Map<string, Expense[]>, "e-m", k => String(k))
-            }
-          </div>
-        )}
-        {expGran === "year" && (
-          <div>
-            <SummaryLine count={[...eForYear.values()].flat().length} noun="expense"
-              total={sumE([...eForYear.values()].flat())} colorCls="text-orange-400"
-              label={`in ${selectedYear}`} totalLabel="Year total" />
-            {eForYear.size === 0
-              ? <Empty msg={`No expenses in ${selectedYear}`} />
-              : renderGrouped(
-                  new Map([...eForYear.entries()].map(([m, es]) => [m, es])) as Map<number, Expense[]>,
-                  "e-y",
-                  k => `${MONTHS[(k as number) - 1]} ${selectedYear}`,
-                )
-            }
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Main render ───────────────────────────────────────────────────────────────
-
+function SummaryLine({ count, noun, total, colorCls, label, totalLabel }: {
+  count: number; noun: string; total: number; colorCls: string; label: string; totalLabel: string;
+}) {
   return (
-    <div className="min-h-screen bg-[var(--background)] px-4 sm:px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Finances</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Track vehicle purchases, part sales, and other business expenses
-          </p>
-        </div>
-
-        {/* Main tabs */}
-        <div className="flex gap-1 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border-subtle)] w-fit">
-          {([
-            ["sellings",  "Sellings"],
-            ["purchases", "Purchases"],
-            ["other",     "Other Spendings"],
-          ] as [MainTab, string][]).map(([k, l]) => (
-            <button key={k} onClick={() => setMainTab(k)} className={tabCls(mainTab === k)}>{l}</button>
-          ))}
-        </div>
-
-        {/* Content */}
-        {mainTab !== "other" ? (
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-            {/* Controls bar */}
-            <div className="flex items-center gap-4 px-5 py-4 border-b border-[var(--border-subtle)] flex-wrap">
-              <div className="flex gap-1 p-1 rounded-lg bg-[var(--background)] border border-[var(--border-subtle)]">
-                {(["day", "month", "year"] as Granularity[]).map(g => (
-                  <button key={g} onClick={() => { setGranularity(g); setExpandedRows(new Set()); }} className={granCls(granularity === g)}>
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
-                  </button>
-                ))}
-              </div>
-              <DatePicker g={granularity} />
-            </div>
-
-            {/* Body */}
-            <div className="p-5">
-              {mainTab === "purchases" ? renderPurchases() : renderSellings()}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            {renderOtherSpendings()}
-          </div>
-        )}
-      </div>
+    <div className="flex items-center justify-between mb-4">
+      <p className="text-sm text-[var(--text-muted)]">{count} {noun}{count !== 1 ? "s" : ""} {label}</p>
+      <p className={`text-sm font-semibold ${colorCls}`}>{totalLabel}: {fmt(total)}</p>
     </div>
   );
 }
-
-// ─── Micro-components ─────────────────────────────────────────────────────────
 
 function Spinner({ label }: { label: string }) {
   return (
@@ -786,18 +235,469 @@ function Empty({ msg }: { msg: string }) {
   return <p className="text-center py-12 text-sm text-[var(--text-muted)]">{msg}</p>;
 }
 
-function SummaryLine({
-  count, noun, total, colorCls, label, totalLabel = "Total",
-}: {
-  count: number; noun: string; total: number; colorCls: string;
-  label: string; totalLabel?: string;
-}) {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function FinancesPage() {
+  const { t, lang } = useLanguage();
+  const tf = t.finances;
+  const now = new Date();
+  const locale = localeMap[lang] ?? "en-US";
+  const monthName = useCallback(
+    (m: number) => new Intl.DateTimeFormat(locale, { month: "short" }).format(new Date(2000, m - 1, 1)),
+    [locale],
+  );
+
+  const [mainTab,         setMainTab]         = useState<MainTab>("sellings");
+  const [showAddIncome,   setShowAddIncome]   = useState(false);
+  const [showAddExpense,  setShowAddExpense]  = useState(false);
+  const [granularity,   setGranularity]   = useState<Granularity>("month");
+  const [selectedDate,  setSelectedDate]  = useState(now.toISOString().slice(0, 10));
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear,  setSelectedYear]  = useState(now.getFullYear());
+  const [expandedRows,  setExpandedRows]  = useState<Set<string>>(new Set());
+
+  const [vehicles,       setVehicles]       = useState<Vehicle[]>([]);
+  const [soldParts,      setSoldParts]      = useState<SoldPart[]>([]);
+  const [incomeEntries,  setIncomeEntries]  = useState<ManualEntry[]>([]);
+  const [expenseEntries, setExpenseEntries] = useState<ManualEntry[]>([]);
+
+  const [loadingV, setLoadingV] = useState(false);
+  const [loadingP, setLoadingP] = useState(false);
+  const [loadingI, setLoadingI] = useState(false);
+  const [loadingE, setLoadingE] = useState(false);
+
+  const emptyForm: FormState = { date: now.toISOString().slice(0, 10), description: "", category: "", amount: "", notes: "" };
+  const [newIncome,  setNewIncome]  = useState<FormState>({ ...emptyForm, category: "Other" });
+  const [newExpense, setNewExpense] = useState<FormState>({ ...emptyForm, category: "Other" });
+  const [saving, setSaving] = useState(false);
+
+  // ── Fetchers ──────────────────────────────────────────────────────────────────
+
+  const loadVehicles = useCallback(() => {
+    if (vehicles.length) return;
+    setLoadingV(true);
+    api.get("/vehicles?limit=9999&page=1")
+      .then(r => setVehicles(r.data?.data ?? r.data ?? []))
+      .finally(() => setLoadingV(false));
+  }, [vehicles.length]);
+
+  const loadSoldParts = useCallback(() => {
+    if (soldParts.length) return;
+    setLoadingP(true);
+    api.get("/parts?status=sold&limit=9999&page=1")
+      .then(r => setSoldParts(r.data?.data ?? r.data ?? []))
+      .finally(() => setLoadingP(false));
+  }, [soldParts.length]);
+
+  const loadIncome = useCallback(() => {
+    setLoadingI(true);
+    api.get("/manual-entries?type=income")
+      .then(r => setIncomeEntries(r.data ?? []))
+      .finally(() => setLoadingI(false));
+  }, []);
+
+  const loadExpenses = useCallback(() => {
+    setLoadingE(true);
+    api.get("/manual-entries?type=expense")
+      .then(r => setExpenseEntries(r.data ?? []))
+      .finally(() => setLoadingE(false));
+  }, []);
+
+  useEffect(() => {
+    if (mainTab === "sellings")  { loadSoldParts(); loadIncome(); }
+    if (mainTab === "purchases") { loadVehicles();  loadExpenses(); }
+  }, [mainTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Entry CRUD ────────────────────────────────────────────────────────────────
+
+  const addEntry = async (type: "income" | "expense") => {
+    const form = type === "income" ? newIncome : newExpense;
+    const amount = parseFloat(form.amount);
+    if (!form.description.trim() || isNaN(amount) || amount <= 0) return;
+    setSaving(true);
+    try {
+      await api.post("/manual-entries", { type, ...form, amount });
+      if (type === "income") { setNewIncome({ ...emptyForm, category: "Other" }); loadIncome(); }
+      else                   { setNewExpense({ ...emptyForm, category: "Other" }); loadExpenses(); }
+    } finally { setSaving(false); }
+  };
+
+  const deleteEntry = async (id: number, type: "income" | "expense") => {
+    await api.delete(`/manual-entries/${id}`);
+    if (type === "income") loadIncome();
+    else                   loadExpenses();
+  };
+
+  const toggleRow = (key: string) =>
+    setExpandedRows(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  // ── Styles ────────────────────────────────────────────────────────────────────
+
+  const tabCls = (a: boolean) =>
+    `px-4 py-2 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+      a ? "bg-blue-600/10 text-blue-400 ring-1 ring-blue-500/20"
+        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+    }`;
+
+  const granCls = (a: boolean) =>
+    `px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+      a ? "bg-[var(--surface-raised)] text-[var(--text-primary)] ring-1 ring-[var(--border)]"
+        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+    }`;
+
+  const inputCls = "px-3 py-1.5 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  // ── Date picker ───────────────────────────────────────────────────────────────
+
+  const DatePicker = ({ g }: { g: Granularity }) => (
+    <div className="flex items-center gap-2 flex-wrap">
+      {g === "day" && (
+        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className={inputCls} />
+      )}
+      {g === "month" && (
+        <>
+          <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))} className={inputCls}>
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i} value={i + 1}>{monthName(i + 1)}</option>
+            ))}
+          </select>
+          <input type="number" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className={`${inputCls} w-24`} />
+        </>
+      )}
+      {g === "year" && (
+        <input type="number" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className={`${inputCls} w-28`} />
+      )}
+    </div>
+  );
+
+  // ── Derived data ──────────────────────────────────────────────────────────────
+
+  const soldDate = (p: SoldPart) => toDateStr(p.soldAt ?? p.createdAt);
+
+  const vFiltered = useMemo(() => {
+    if (granularity === "day")   return vehicles.filter(v => vehicleDate(v) === selectedDate);
+    if (granularity === "month") return vehicles.filter(v => { const d = vehicleDate(v); const [y, m] = d.split("-").map(Number); return y === selectedYear && m === selectedMonth; });
+    return vehicles.filter(v => parseInt(vehicleDate(v).split("-")[0]) === selectedYear);
+  }, [vehicles, granularity, selectedDate, selectedMonth, selectedYear]);
+
+  const pFiltered = useMemo(() => {
+    if (granularity === "day")   return soldParts.filter(p => soldDate(p) === selectedDate);
+    if (granularity === "month") return soldParts.filter(p => { const d = soldDate(p); const [y, m] = d.split("-").map(Number); return y === selectedYear && m === selectedMonth; });
+    return soldParts.filter(p => parseInt(soldDate(p).split("-")[0]) === selectedYear);
+  }, [soldParts, granularity, selectedDate, selectedMonth, selectedYear]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mFiltered = (entries: ManualEntry[]) => {
+    if (granularity === "day")   return entries.filter(e => e.date === selectedDate);
+    if (granularity === "month") return entries.filter(e => { const [y, m] = e.date.split("-").map(Number); return y === selectedYear && m === selectedMonth; });
+    return entries.filter(e => parseInt(e.date.split("-")[0]) === selectedYear);
+  };
+
+  // ── Generic renderers ─────────────────────────────────────────────────────────
+
+  function renderDayView<T>(
+    items: T[], getKey: (i: T) => number, getLabel: (i: T) => string, getSub: (i: T) => string,
+    getAmt: (i: T) => string | null, sum: (is: T[]) => number, colorCls: string, noun: string,
+    emptyMsg: string, onDelete?: (i: T) => void,
+  ) {
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={noun} total={sum(items)} colorCls={colorCls}
+          label={`${tf.on} ${selectedDate}`} totalLabel={tf.total} />
+        {items.length === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-2">
+            {items.map(item => (
+              <div key={getKey(item)} className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] group">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{getLabel(item)}</p>
+                  {getSub(item) && <p className="text-xs text-[var(--text-muted)]">{getSub(item)}</p>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className={`text-sm font-semibold ${colorCls}`}>{fmt(getAmt(item))}</p>
+                  {onDelete && (
+                    <button onClick={() => onDelete(item)} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderMonthView<T>(
+    items: T[], getDate: (i: T) => string, getKey: (i: T) => number, getLabel: (i: T) => string,
+    getSub: (i: T) => string, getAmt: (i: T) => string | null, sum: (is: T[]) => number,
+    colorCls: string, noun: string, rowPrefix: string, emptyMsg: string, onDelete?: (i: T) => void,
+  ) {
+    const grouped = groupByDate(items, getDate);
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={noun} total={sum(items)} colorCls={colorCls}
+          label={`${tf.in} ${monthName(selectedMonth)} ${selectedYear}`} totalLabel={tf.monthTotal} />
+        {grouped.size === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-1">
+            {[...grouped.entries()].map(([date, dayItems]) => {
+              const key = `${rowPrefix}-${date}`;
+              const open = expandedRows.has(key);
+              return (
+                <div key={date} className="rounded-lg border border-[var(--border)] overflow-hidden">
+                  <RowHeader label={date} count={dayItems.length} noun={noun} total={sum(dayItems)}
+                    colorCls={colorCls} open={open} onToggle={() => toggleRow(key)} />
+                  {open && (
+                    <div className="border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+                      {dayItems.map(item => (
+                        <div key={getKey(item)} className="flex items-center justify-between px-6 py-2.5 hover:bg-[var(--surface-raised)] transition-all group">
+                          <div>
+                            <p className="text-sm text-[var(--text-primary)]">{getLabel(item)}</p>
+                            {getSub(item) && <p className="text-xs text-[var(--text-muted)]">{getSub(item)}</p>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className={`text-sm ${colorCls}`}>{fmt(getAmt(item))}</p>
+                            {onDelete && (
+                              <button onClick={() => onDelete(item)} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderYearView<T>(
+    items: T[], getDate: (i: T) => string, getKey: (i: T) => number, getLabel: (i: T) => string,
+    getSub: (i: T) => string, getAmt: (i: T) => string | null, sum: (is: T[]) => number,
+    colorCls: string, noun: string, rowPrefix: string, emptyMsg: string, onDelete?: (i: T) => void,
+  ) {
+    const byMonth = groupByMonth(items, getDate);
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={noun} total={sum(items)} colorCls={colorCls}
+          label={`${tf.in} ${selectedYear}`} totalLabel={tf.yearTotal} />
+        {byMonth.size === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-1">
+            {[...byMonth.entries()].map(([month, monthItems]) => {
+              const key  = `${rowPrefix}-${month}`;
+              const open = expandedRows.has(key);
+              const byDay = groupByDate(monthItems, getDate);
+              return (
+                <div key={month} className="rounded-lg border border-[var(--border)] overflow-hidden">
+                  <RowHeader label={`${monthName(month)} ${selectedYear}`} count={monthItems.length} noun={noun}
+                    total={sum(monthItems)} colorCls={colorCls} open={open} onToggle={() => toggleRow(key)} />
+                  {open && (
+                    <div className="border-t border-[var(--border-subtle)]">
+                      {[...byDay.entries()].map(([date, dayItems]) => (
+                        <div key={date}>
+                          <div className="flex justify-between px-6 py-2 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
+                            <p className="text-xs font-semibold text-[var(--text-muted)]">{date}</p>
+                            <p className={`text-xs font-semibold ${colorCls} opacity-70`}>{fmt(sum(dayItems))}</p>
+                          </div>
+                          {dayItems.map(item => (
+                            <div key={getKey(item)} className="flex items-center justify-between px-8 py-2 hover:bg-[var(--surface-raised)] border-b border-[var(--border-subtle)] last:border-0 transition-all group">
+                              <div>
+                                <p className="text-sm text-[var(--text-primary)]">{getLabel(item)}</p>
+                                {getSub(item) && <p className="text-xs text-[var(--text-muted)]">{getSub(item)}</p>}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <p className={`text-sm ${colorCls}`}>{fmt(getAmt(item))}</p>
+                                {onDelete && (
+                                  <button onClick={() => onDelete(item)} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Tab renderers ─────────────────────────────────────────────────────────────
+
+  function renderSellings() {
+    if (loadingP) return <Spinner label={tf.loadingParts} />;
+    const items = pFiltered;
+    const mName = monthName(selectedMonth);
+    if (granularity === "day")
+      return renderDayView(items, p => p.id, p => p.name,
+        p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}${p.category?.name ? " · " + p.category.name : ""}` : (p.category?.name ?? ""),
+        p => p.price, sumP, "text-green-400", tf.part, tf.noPartsSoldDay);
+    if (granularity === "month")
+      return renderMonthView(items, soldDate, p => p.id, p => p.name,
+        p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}` : "",
+        p => p.price, sumP, "text-green-400", tf.part, "s-m", tf.noPartsSoldMonth(mName, selectedYear));
+    return renderYearView(items, soldDate, p => p.id, p => p.name,
+      p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}` : "",
+      p => p.price, sumP, "text-green-400", tf.part, "s-y", tf.noPartsSoldYear(selectedYear));
+  }
+
+  function renderPurchases() {
+    if (loadingV) return <Spinner label={tf.loadingVehicles} />;
+    const items = vFiltered;
+    const mName = monthName(selectedMonth);
+    if (granularity === "day")
+      return renderDayView(items, v => v.id, vehicleName, v => tf.purchasedOn(vehicleDate(v)),
+        v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, tf.noVehiclesDay);
+    if (granularity === "month")
+      return renderMonthView(items, vehicleDate, v => v.id, vehicleName, () => "",
+        v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, "p-m", tf.noVehiclesMonth(mName, selectedYear));
+    return renderYearView(items, vehicleDate, v => v.id, vehicleName, () => "",
+      v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, "p-y", tf.noVehiclesYear(selectedYear));
+  }
+
+  const incomeFormLabels: AddEntryFormLabels = {
+    title: tf.addIncome, date: tf.date, description: tf.description,
+    category: tf.category, amount: tf.amount, add: tf.add,
+    incomePlaceholder: "e.g. Sold scrap metal 50kg",
+    expensePlaceholder: "e.g. Monthly rent",
+  };
+  const expenseFormLabels: AddEntryFormLabels = {
+    title: tf.addExpense, date: tf.date, description: tf.description,
+    category: tf.category, amount: tf.amount, add: tf.add,
+    incomePlaceholder: "e.g. Sold scrap metal 50kg",
+    expensePlaceholder: "e.g. Monthly rent",
+  };
+
+  function renderOtherSellings() {
+    if (loadingI) return <Spinner label={tf.loadingEntries} />;
+    const items    = mFiltered(incomeEntries);
+    const totalAll = sumM(incomeEntries);
+    const mName    = monthName(selectedMonth);
+    return (
+      <div>
+        <AddEntryForm
+          type="income" cats={tf.incomeCats}
+          form={newIncome} setForm={setNewIncome}
+          onAdd={() => addEntry("income")} saving={saving}
+          labels={incomeFormLabels}
+        />
+        {incomeEntries.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-500/5 border border-green-500/20 mb-5">
+            <svg className="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-green-400">{tf.allTimeTotal}: {fmt(totalAll)}</p>
+              <p className="text-xs text-[var(--text-muted)]">{tf.incomeRecords(incomeEntries.length)}</p>
+            </div>
+          </div>
+        )}
+        {granularity === "day"   && renderDayView(items, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, tf.noIncomeDay, m => deleteEntry(m.id, "income"))}
+        {granularity === "month" && renderMonthView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, "os-m", tf.noIncomeMonth(mName, selectedYear), m => deleteEntry(m.id, "income"))}
+        {granularity === "year"  && renderYearView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, "os-y", tf.noIncomeYear(selectedYear), m => deleteEntry(m.id, "income"))}
+      </div>
+    );
+  }
+
+  function renderOtherSpendings() {
+    if (loadingE) return <Spinner label={tf.loadingEntries} />;
+    const items    = mFiltered(expenseEntries);
+    const totalAll = sumM(expenseEntries);
+    const mName    = monthName(selectedMonth);
+    return (
+      <div>
+        <AddEntryForm
+          type="expense" cats={tf.expenseCats}
+          form={newExpense} setForm={setNewExpense}
+          onAdd={() => addEntry("expense")} saving={saving}
+          labels={expenseFormLabels}
+        />
+        {expenseEntries.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/5 border border-orange-500/20 mb-5">
+            <svg className="w-5 h-5 text-orange-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-orange-400">{tf.allTimeTotal}: {fmt(totalAll)}</p>
+              <p className="text-xs text-[var(--text-muted)]">{tf.expenseRecords(expenseEntries.length)}</p>
+            </div>
+          </div>
+        )}
+        {granularity === "day"   && renderDayView(items, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, tf.noExpenseDay, m => deleteEntry(m.id, "expense"))}
+        {granularity === "month" && renderMonthView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, "oe-m", tf.noExpenseMonth(mName, selectedYear), m => deleteEntry(m.id, "expense"))}
+        {granularity === "year"  && renderYearView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, "oe-y", tf.noExpenseYear(selectedYear), m => deleteEntry(m.id, "expense"))}
+      </div>
+    );
+  }
+
+  // ── Main render ───────────────────────────────────────────────────────────────
+
+  const TABS: [MainTab, string][] = [
+    ["sellings",        tf.sellings],
+    ["other-sellings",  tf.otherSellings],
+    ["purchases",       tf.purchases],
+    ["other-spendings", tf.otherSpendings],
+  ];
+
+  const GRANS: [Granularity, string][] = [
+    ["day",   tf.day],
+    ["month", tf.month],
+    ["year",  tf.year],
+  ];
+
   return (
-    <div className="flex items-center justify-between mb-4">
-      <p className="text-sm text-[var(--text-muted)]">
-        {count} {noun}{count !== 1 ? "s" : ""} {label}
-      </p>
-      <p className={`text-sm font-semibold ${colorCls}`}>{totalLabel}: {fmt(total)}</p>
+    <div className="min-h-screen bg-[var(--background)] px-4 sm:px-6 py-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">{tf.title}</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">{tf.subtitle}</p>
+        </div>
+
+        {/* Main tabs */}
+        <div className="flex gap-1 p-1 rounded-xl bg-[var(--surface)] border border-[var(--border-subtle)] w-fit overflow-x-auto">
+          {TABS.map(([k, l]) => (
+            <button key={k} onClick={() => { setMainTab(k); setExpandedRows(new Set()); }} className={tabCls(mainTab === k)}>{l}</button>
+          ))}
+        </div>
+
+        {/* Controls bar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1 p-1 rounded-lg bg-[var(--surface)] border border-[var(--border-subtle)]">
+            {GRANS.map(([g, label]) => (
+              <button key={g} onClick={() => { setGranularity(g); setExpandedRows(new Set()); }} className={granCls(granularity === g)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <DatePicker g={granularity} />
+        </div>
+
+        {/* Content */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          {mainTab === "sellings"        && renderSellings()}
+          {mainTab === "other-sellings"  && renderOtherSellings()}
+          {mainTab === "purchases"       && renderPurchases()}
+          {mainTab === "other-spendings" && renderOtherSpendings()}
+        </div>
+
+      </div>
     </div>
   );
 }

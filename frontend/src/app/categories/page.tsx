@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isAxiosError } from "axios";
 import api from "@/lib/api";
 import { Category } from "@/lib/types";
@@ -9,6 +9,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function CategoriesPage() {
   const { t } = useLanguage();
+  const nameRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName]             = useState("");
   const [description, setDesc]      = useState("");
@@ -38,6 +39,7 @@ export default function CategoriesPage() {
       setToast({ message: `Category "${name.trim()}" created`, type: "success" });
       setName("");
       setDesc("");
+      nameRef.current?.focus();
       load();
     } catch (err: unknown) {
       let msg: string | string[] = "Failed to create category";
@@ -92,9 +94,11 @@ export default function CategoriesPage() {
                   {t.categories.name} <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={nameRef}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Engine, Gearbox, Body…"
+                  autoFocus
                   required
                   className="w-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-primary)] placeholder-zinc-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40"
                 />

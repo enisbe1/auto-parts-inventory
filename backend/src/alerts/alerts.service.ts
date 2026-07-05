@@ -24,13 +24,20 @@ export class AlertsService {
     const negativeVehicles = await this.ds.query(`
       SELECT
         v.id,
+        v.year,
         v."purchasePrice",
+        mk.name AS "makeName",
+        mo.name AS "modelName",
         COALESCE(SUM(CASE WHEN p.status = 'sold' THEN p.price ELSE 0 END), 0) AS revenue,
         (COALESCE(SUM(CASE WHEN p.status = 'sold' THEN p.price ELSE 0 END), 0) - v."purchasePrice") AS "netPL"
       FROM vehicles v
       LEFT JOIN parts p ON p."vehicleId" = v.id
+      LEFT JOIN variants var ON var.id = v."variantId"
+      LEFT JOIN generations gen ON gen.id = var."generationId"
+      LEFT JOIN car_models mo ON mo.id = gen."modelId"
+      LEFT JOIN makes mk ON mk.id = mo."makeId"
       WHERE v."purchasePrice" IS NOT NULL
-      GROUP BY v.id, v."purchasePrice"
+      GROUP BY v.id, v.year, v."purchasePrice", mk.name, mo.name
       HAVING COALESCE(SUM(CASE WHEN p.status = 'sold' THEN p.price ELSE 0 END), 0) < v."purchasePrice"
         AND v.status != 'scrapped'
       ORDER BY "netPL" ASC
@@ -48,6 +55,7 @@ export class AlertsService {
         purchasePrice: parseFloat(r.purchasePrice || 0),
         revenue: parseFloat(r.revenue || 0),
         netPL: parseFloat(r.netPL || 0),
+        displayName: [r.year, r.makeName, r.modelName].filter(Boolean).join(' ') || `Vehicle #${r.id}`,
       })),
     };
   }

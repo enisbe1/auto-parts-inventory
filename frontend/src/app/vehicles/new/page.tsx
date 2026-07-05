@@ -31,7 +31,9 @@ export default function NewVehiclePage() {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [purchaseDate, setPurchaseDate]   = useState('');
   const [notes, setNotes]                 = useState('');
+  const [status, setStatus]               = useState('in_stock');
   const [saving, setSaving]               = useState(false);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
 
   // Step 2 state
   const [step, setStep]               = useState<1 | 2>(1);
@@ -56,21 +58,59 @@ export default function NewVehiclePage() {
   // Cascading dropdowns
   useEffect(() => { api.get('/makes').then(r => setMakes(r.data)); }, []);
   useEffect(() => {
-    if (!makeId) { setModels([]); setModelId(''); setGenerations([]); setVariants([]); return; }
-    api.get('/models', { params: { makeId } }).then(r => { setModels(r.data); setModelId(''); setGenerations([]); setVariants([]); });
+    if (!makeId) { setModels([]); setModelId(''); setGenerations([]); setGenerationId(''); setVariants([]); setVariantId(''); return; }
+    api.get('/models', { params: { makeId } }).then(r => {
+      const data = r.data;
+      setModels(data);
+      setModelId('');
+      setGenerations([]); setGenerationId('');
+      setVariants([]); setVariantId('');
+      // auto-select if only one model
+      if (data.length === 1) setModelId(String(data[0].id));
+    });
   }, [makeId]);
   useEffect(() => {
-    if (!modelId) { setGenerations([]); setGenerationId(''); setVariants([]); return; }
-    api.get('/generations', { params: { modelId } }).then(r => { setGenerations(r.data); setGenerationId(''); setVariants([]); });
+    if (!modelId) { setGenerations([]); setGenerationId(''); setVariants([]); setVariantId(''); return; }
+    api.get('/generations', { params: { modelId } }).then(r => {
+      const data = r.data;
+      setGenerations(data);
+      setGenerationId('');
+      setVariants([]); setVariantId('');
+      // auto-select if only one generation
+      if (data.length === 1) setGenerationId(String(data[0].id));
+    });
   }, [modelId]);
   useEffect(() => {
-    if (!generationId) { setVariants([]); setVariantId(''); return; }
-    api.get('/variants', { params: { generationId } }).then(r => { setVariants(r.data); setVariantId(''); });
+    if (!generationId) { setVariants([]); setVariantId(''); setVariantsLoaded(false); return; }
+    setVariantsLoaded(false);
+    api.get('/variants', { params: { generationId } }).then(r => {
+      const data = r.data;
+      setVariants(data);
+      setVariantId('');
+      setVariantsLoaded(true);
+      // auto-select if only one variant
+      if (data.length === 1) setVariantId(String(data[0].id));
+    });
   }, [generationId]);
 
   // ── Submit vehicle ──────────────────────────────────────────────────────────
   const submitVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Warn if user selected make/model but didn't complete hierarchy to variant
+    if (makeId && !variantId) {
+      const noVariantsInCatalogue = generationId && variantsLoaded && variants.length === 0;
+      setToast({
+        msg: noVariantsInCatalogue
+          ? 'This generation has no variants in the catalogue. Go to Catalogue → add Variants, then come back here.'
+          : generationId
+            ? 'Please select a Variant to link the full vehicle hierarchy.'
+            : modelId
+              ? 'Please select a Generation and Variant to link the model.'
+              : 'Please complete the Make → Model → Generation → Variant selection.',
+        type: 'error',
+      });
+      return;
+    }
     setSaving(true);
     try {
       const { data } = await api.post('/vehicles', {
@@ -80,6 +120,7 @@ export default function NewVehiclePage() {
         mileage:       mileage       ? +mileage       : undefined,
         purchasePrice: purchasePrice ? +purchasePrice : undefined,
         purchaseDate:  purchaseDate  || undefined,
+        status,
         notes:         notes         || undefined,
       });
       // Build a readable title for step 2
@@ -215,6 +256,21 @@ export default function NewVehiclePage() {
               </select>
             </div>
           </div>
+
+          {/* Warning: generation selected but no variants exist in catalogue */}
+          {generationId && variantsLoaded && variants.length === 0 && (
+            <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-amber-400">No variants in catalogue for this generation</p>
+                <p className="text-xs text-amber-400/80 mt-0.5">
+                  Go to <strong className="font-semibold">Catalogue</strong> and add at least one Variant to this Generation, then come back here to create the vehicle.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-4">
@@ -239,6 +295,14 @@ export default function NewVehiclePage() {
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.newVehicle.purchaseDate}</label>
               <input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} className={inp} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t.common.status}</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} className={sel}>
+                <option value="in_stock">{t.status.in_stock}</option>
+                <option value="scrapped">{t.status.scrapped}</option>
+                <option value="sold">{t.status.sold}</option>
+              </select>
             </div>
           </div>
           <div>

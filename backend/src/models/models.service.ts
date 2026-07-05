@@ -23,6 +23,10 @@ export class ModelsService {
   create(name: string, makeId: number, bodyType?: string) {
     return this.repo.save(this.repo.create({ name, makeId, bodyType }));
   }
+  async update(id: number, data: { name?: string; bodyType?: string }) {
+    await this.repo.update(id, data);
+    return this.findOne(id);
+  }
   async remove(id: number) {
     await this.repo.delete(id);
   }

@@ -5,7 +5,7 @@ import { parse } from 'csv-parse/sync';
 import { PartsService } from './parts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsArray, IsString, IsNumber, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class CreatePartDto {
@@ -17,6 +17,7 @@ class CreatePartDto {
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsNumber() @Type(() => Number) vehicleId?: number;
   @IsOptional() @IsNumber() @Type(() => Number) categoryId?: number;
+  @IsOptional() @IsArray() @IsString({ each: true }) photos?: string[];
 }
 
 class UpdatePartDto {
@@ -28,6 +29,7 @@ class UpdatePartDto {
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsNumber() @Type(() => Number) vehicleId?: number;
   @IsOptional() @IsNumber() @Type(() => Number) categoryId?: number;
+  @IsOptional() @IsArray() @IsString({ each: true }) photos?: string[];
 }
 
 @Controller('parts')
@@ -36,17 +38,21 @@ export class PartsController {
 
   @Get()
   findAll(
-    @Query('vehicleId')   vehicleId?: string,
-    @Query('categoryId')  categoryId?: string,
-    @Query('status')      status?: string,
-    @Query('condition')   condition?: string,
-    @Query('search')      search?: string,
-    @Query('page')        page?: string,
-    @Query('limit')       limit?: string,
+    @Query('vehicleId')    vehicleId?: string,
+    @Query('categoryId')   categoryId?: string,
+    @Query('modelId')      modelId?: string,
+    @Query('generationId') generationId?: string,
+    @Query('status')       status?: string,
+    @Query('condition')    condition?: string,
+    @Query('search')       search?: string,
+    @Query('page')         page?: string,
+    @Query('limit')        limit?: string,
   ) {
     return this.svc.findAll({
-      vehicleId:  vehicleId  ? +vehicleId  : undefined,
-      categoryId: categoryId ? +categoryId : undefined,
+      vehicleId:    vehicleId    ? +vehicleId    : undefined,
+      categoryId:   categoryId   ? +categoryId   : undefined,
+      modelId:      modelId      ? +modelId      : undefined,
+      generationId: generationId ? +generationId : undefined,
       status,
       condition,
       search,
