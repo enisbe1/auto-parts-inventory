@@ -36,6 +36,7 @@ export class VehiclesController {
     });
   }
 
+  @Get('roi') getRoiStats() { return this.svc.getRoiStats(); }
   @Get(':id') findOne(@Param('id') id: string) { return this.svc.findOne(+id); }
   @UseGuards(JwtAuthGuard) @Post()        create(@Body() dto: CreateVehicleDto) { return this.svc.create(dto); }
   @UseGuards(JwtAuthGuard) @Patch(':id')  update(@Param('id') id: string, @Body() dto: CreateVehicleDto) { return this.svc.update(+id, dto); }

@@ -56,17 +56,24 @@ export default function CommandPalette() {
   const inputRef  = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keyboard shortcut to open
+  // Keyboard shortcut to open (⌘K or / when not in a text field)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setOpen((o) => !o);
       }
+      if (e.key === "/" && !open) {
+        const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
+        if (!["INPUT", "TEXTAREA", "SELECT"].includes(tag)) {
+          e.preventDefault();
+          setOpen(true);
+        }
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [open]);
 
   // Focus input when opened
   useEffect(() => {
@@ -187,9 +194,10 @@ export default function CommandPalette() {
             placeholder="Search pages, vehicles, parts…"
             className="flex-1 bg-transparent py-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none"
           />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] text-[10px] font-mono">⌘</kbd>
-            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] text-[10px] font-mono">K</kbd>
+          <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+            <kbd className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] text-[10px] font-mono">⌘K</kbd>
+            <span className="text-[var(--text-muted)] text-[10px]">or</span>
+            <kbd className="inline-flex items-center px-1.5 py-0.5 rounded bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] text-[10px] font-mono">/</kbd>
           </div>
           {query && (
             <button

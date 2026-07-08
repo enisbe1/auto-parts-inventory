@@ -117,15 +117,18 @@ function ModelGrid({ vehicles, make, onSelect }: { vehicles: Vehicle[]; make: st
   );
 }
 
+interface RoiStat { purchasePrice: number; soldRevenue: number; availableValue: number }
+
 // ─── Vehicle list ─────────────────────────────────────────────────────────────
 function VehicleList({
   vehicles, make, model,
-  onDelete,
+  onDelete, roiMap,
 }: {
   vehicles: Vehicle[];
   make: string;
   model: string;
   onDelete: (v: Vehicle) => void;
+  roiMap: Map<number, RoiStat>;
 }) {
   const router = useRouter();
   const { t } = useLanguage();
@@ -167,7 +170,26 @@ function VehicleList({
                 {v.mileage ? `${v.mileage.toLocaleString()} km` : <span className="text-[var(--text-muted)]">—</span>}
               </td>
               <td className="px-6 py-3.5 text-[var(--text-secondary)] text-xs font-medium">
-                {v.purchasePrice ? `€${Number(v.purchasePrice).toLocaleString()}` : <span className="text-[var(--text-muted)]">—</span>}
+                {v.purchasePrice ? (
+                  <div>
+                    <span>{`€${Number(v.purchasePrice).toLocaleString()}`}</span>
+                    {(() => {
+                      const roi = roiMap.get(v.id);
+                      if (!roi || roi.purchasePrice <= 0) return null;
+                      const soldPct  = Math.min((roi.soldRevenue    / roi.purchasePrice) * 100, 100);
+                      const availPct = Math.min((roi.availableValue / roi.purchasePrice) * 100, 100 - soldPct);
+                      return (
+                        <div
+                          className="mt-1.5 h-1 w-full rounded-full bg-[var(--surface-raised)] overflow-hidden flex"
+                          title={`Recovered: €${roi.soldRevenue.toFixed(0)} · Available: €${roi.availableValue.toFixed(0)}`}
+                        >
+                          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${soldPct}%` }} />
+                          <div className="h-full bg-blue-500/60"                 style={{ width: `${availPct}%` }} />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : <span className="text-[var(--text-muted)]">—</span>}
               </td>
               <td className="px-6 py-3.5">
                 <span className={statusBadge(v.status)}>{v.status.replace("_", " ")}</span>
@@ -209,12 +231,21 @@ function VehiclesContent() {
   const [toDelete, setToDelete] = useState<Vehicle | null>(null);
   const [toast, setToast]       = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [roiMap, setRoiMap] = useState<Map<number, RoiStat>>(new Map());
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get("/vehicles", { params: { page: 1, limit: 500 } });
-      setVehicles(data.data ?? []);
+      const [vRes, roiRes] = await Promise.all([
+        api.get("/vehicles", { params: { page: 1, limit: 500 } }),
+        api.get("/vehicles/roi").catch(() => ({ data: [] })),
+      ]);
+      setVehicles(vRes.data.data ?? []);
+      const map = new Map<number, RoiStat>();
+      for (const r of (roiRes.data as Array<RoiStat & { id: number }>)) {
+        map.set(r.id, { purchasePrice: r.purchasePrice, soldRevenue: r.soldRevenue, availableValue: r.availableValue });
+      }
+      setRoiMap(map);
     } finally {
       setLoading(false);
     }
@@ -420,6 +451,7 @@ function VehiclesContent() {
           make={selectedMake}
           model={selectedModel}
           onDelete={setToDelete}
+          roiMap={roiMap}
         />
       )}
 

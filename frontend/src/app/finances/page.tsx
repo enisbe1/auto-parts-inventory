@@ -538,38 +538,210 @@ export default function FinancesPage() {
     );
   }
 
+  // ── Normalise to UnifiedItem ──────────────────────────────────────────────────
+
+  function toUnifiedParts(parts: SoldPart[]): UnifiedItem[] {
+    return parts.map(p => ({
+      key: `part-${p.id}`,
+      date: soldDate(p),
+      label: p.name,
+      sub: partVehicle(p) ? `${tf.from} ${partVehicle(p)}${p.category?.name ? " · " + p.category.name : ""}` : (p.category?.name ?? ""),
+      amount: parseFloat(p.price ?? "0"),
+      amtCls: "text-green-400",
+      badgeText: tf.part,
+      badgeCls: "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20",
+    }));
+  }
+
+  function toUnifiedIncome(entries: ManualEntry[]): UnifiedItem[] {
+    return entries.map(m => ({
+      key: `income-${m.id}`,
+      date: m.date,
+      label: m.description,
+      sub: m.category,
+      amount: parseFloat(m.amount),
+      amtCls: "text-teal-400",
+      badgeText: m.category || tf.otherSellings,
+      badgeCls: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+      onDelete: () => deleteEntry(m.id, "income"),
+    }));
+  }
+
+  function toUnifiedVehicles(veh: Vehicle[]): UnifiedItem[] {
+    return veh.map(v => ({
+      key: `vehicle-${v.id}`,
+      date: vehicleDate(v),
+      label: vehicleName(v),
+      sub: tf.purchasedOn(vehicleDate(v)),
+      amount: parseFloat(v.purchasePrice ?? "0"),
+      amtCls: "text-[var(--text-primary)]",
+      badgeText: tf.vehicle,
+      badgeCls: "bg-[var(--surface-raised)] text-[var(--text-muted)] border border-[var(--border)]",
+    }));
+  }
+
+  function toUnifiedExpenses(entries: ManualEntry[]): UnifiedItem[] {
+    return entries.map(m => ({
+      key: `expense-${m.id}`,
+      date: m.date,
+      label: m.description,
+      sub: m.category,
+      amount: parseFloat(m.amount),
+      amtCls: "text-orange-400",
+      badgeText: m.category || tf.otherSpendings,
+      badgeCls: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20",
+      onDelete: () => deleteEntry(m.id, "expense"),
+    }));
+  }
+
+  // ── Unified renderers ─────────────────────────────────────────────────────────
+
+  function renderUnifiedItem(item: UnifiedItem) {
+    return (
+      <div key={item.key} className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--surface-raised)] border border-[var(--border)] group">
+        <div className="min-w-0 flex-1 mr-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-medium text-[var(--text-primary)] truncate">{item.label}</p>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${item.badgeCls}`}>{item.badgeText}</span>
+          </div>
+          {item.sub && <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{item.sub}</p>}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <p className={`text-sm font-semibold ${item.amtCls}`}>{fmt(item.amount)}</p>
+          {item.onDelete && (
+            <button onClick={item.onDelete} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderUnifiedDay(items: UnifiedItem[], totalAmt: number, colorCls: string, emptyMsg: string) {
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={tf.entry} total={totalAmt} colorCls={colorCls}
+          label={`${tf.on} ${selectedDate}`} totalLabel={tf.total} />
+        {items.length === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-2">{items.map(renderUnifiedItem)}</div>
+        )}
+      </div>
+    );
+  }
+
+  function renderUnifiedMonth(items: UnifiedItem[], totalAmt: number, colorCls: string, rowPrefix: string, emptyMsg: string) {
+    const grouped = groupByDate(items, i => i.date);
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={tf.entry} total={totalAmt} colorCls={colorCls}
+          label={`${tf.in} ${monthName(selectedMonth)} ${selectedYear}`} totalLabel={tf.monthTotal} />
+        {grouped.size === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-1">
+            {[...grouped.entries()].map(([date, dayItems]) => {
+              const key  = `${rowPrefix}-${date}`;
+              const open = expandedRows.has(key);
+              const dayTotal = dayItems.reduce((a, i) => a + i.amount, 0);
+              return (
+                <div key={date} className="rounded-lg border border-[var(--border)] overflow-hidden">
+                  <RowHeader label={date} count={dayItems.length} noun={tf.entry} total={dayTotal}
+                    colorCls={colorCls} open={open} onToggle={() => toggleRow(key)} />
+                  {open && (
+                    <div className="border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+                      {dayItems.map(item => (
+                        <div key={item.key} className="flex items-center justify-between px-6 py-2.5 hover:bg-[var(--surface-raised)] transition-all group">
+                          <div className="min-w-0 flex-1 mr-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm text-[var(--text-primary)] truncate">{item.label}</p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${item.badgeCls}`}>{item.badgeText}</span>
+                            </div>
+                            {item.sub && <p className="text-xs text-[var(--text-muted)]">{item.sub}</p>}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <p className={`text-sm ${item.amtCls}`}>{fmt(item.amount)}</p>
+                            {item.onDelete && (
+                              <button onClick={item.onDelete} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderUnifiedYear(items: UnifiedItem[], totalAmt: number, colorCls: string, rowPrefix: string, emptyMsg: string) {
+    const byMonth = groupByMonth(items, i => i.date);
+    return (
+      <div>
+        <SummaryLine count={items.length} noun={tf.entry} total={totalAmt} colorCls={colorCls}
+          label={`${tf.in} ${selectedYear}`} totalLabel={tf.yearTotal} />
+        {byMonth.size === 0 ? <Empty msg={emptyMsg} /> : (
+          <div className="space-y-1">
+            {[...byMonth.entries()].map(([month, monthItems]) => {
+              const key  = `${rowPrefix}-${month}`;
+              const open = expandedRows.has(key);
+              const byDay = groupByDate(monthItems, i => i.date);
+              const mTotal = monthItems.reduce((a, i) => a + i.amount, 0);
+              return (
+                <div key={month} className="rounded-lg border border-[var(--border)] overflow-hidden">
+                  <RowHeader label={`${monthName(month)} ${selectedYear}`} count={monthItems.length} noun={tf.entry}
+                    total={mTotal} colorCls={colorCls} open={open} onToggle={() => toggleRow(key)} />
+                  {open && (
+                    <div className="border-t border-[var(--border-subtle)]">
+                      {[...byDay.entries()].map(([date, dayItems]) => (
+                        <div key={date}>
+                          <div className="flex justify-between px-6 py-2 bg-[var(--surface)] border-b border-[var(--border-subtle)]">
+                            <p className="text-xs font-semibold text-[var(--text-muted)]">{date}</p>
+                            <p className={`text-xs font-semibold ${colorCls} opacity-70`}>{fmt(dayItems.reduce((a, i) => a + i.amount, 0))}</p>
+                          </div>
+                          {dayItems.map(item => (
+                            <div key={item.key} className="flex items-center justify-between px-8 py-2 hover:bg-[var(--surface-raised)] border-b border-[var(--border-subtle)] last:border-0 transition-all group">
+                              <div className="min-w-0 flex-1 mr-4">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm text-[var(--text-primary)] truncate">{item.label}</p>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${item.badgeCls}`}>{item.badgeText}</span>
+                                </div>
+                                {item.sub && <p className="text-xs text-[var(--text-muted)]">{item.sub}</p>}
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <p className={`text-sm ${item.amtCls}`}>{fmt(item.amount)}</p>
+                                {item.onDelete && (
+                                  <button onClick={item.onDelete} className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 transition-all">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // ── Tab renderers ─────────────────────────────────────────────────────────────
-
-  function renderSellings() {
-    if (loadingP) return <Spinner label={tf.loadingParts} />;
-    const items = pFiltered;
-    const mName = monthName(selectedMonth);
-    if (granularity === "day")
-      return renderDayView(items, p => p.id, p => p.name,
-        p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}${p.category?.name ? " · " + p.category.name : ""}` : (p.category?.name ?? ""),
-        p => p.price, sumP, "text-green-400", tf.part, tf.noPartsSoldDay);
-    if (granularity === "month")
-      return renderMonthView(items, soldDate, p => p.id, p => p.name,
-        p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}` : "",
-        p => p.price, sumP, "text-green-400", tf.part, "s-m", tf.noPartsSoldMonth(mName, selectedYear));
-    return renderYearView(items, soldDate, p => p.id, p => p.name,
-      p => partVehicle(p) ? `${tf.from} ${partVehicle(p)}` : "",
-      p => p.price, sumP, "text-green-400", tf.part, "s-y", tf.noPartsSoldYear(selectedYear));
-  }
-
-  function renderPurchases() {
-    if (loadingV) return <Spinner label={tf.loadingVehicles} />;
-    const items = vFiltered;
-    const mName = monthName(selectedMonth);
-    if (granularity === "day")
-      return renderDayView(items, v => v.id, vehicleName, v => tf.purchasedOn(vehicleDate(v)),
-        v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, tf.noVehiclesDay);
-    if (granularity === "month")
-      return renderMonthView(items, vehicleDate, v => v.id, vehicleName, () => "",
-        v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, "p-m", tf.noVehiclesMonth(mName, selectedYear));
-    return renderYearView(items, vehicleDate, v => v.id, vehicleName, () => "",
-      v => v.purchasePrice, sumV, "text-[var(--text-primary)]", tf.vehicle, "p-y", tf.noVehiclesYear(selectedYear));
-  }
 
   const incomeFormLabels: AddEntryFormLabels = {
     title: tf.addIncome, date: tf.date, description: tf.description,
@@ -584,64 +756,108 @@ export default function FinancesPage() {
     expensePlaceholder: "e.g. Monthly rent",
   };
 
-  function renderOtherSellings() {
-    if (loadingI) return <Spinner label={tf.loadingEntries} />;
-    const items    = mFiltered(incomeEntries);
-    const totalAll = sumM(incomeEntries);
-    const mName    = monthName(selectedMonth);
+  function renderSellings() {
+    if (loadingP || loadingI) return <Spinner label={tf.loadingParts} />;
+    const mName = monthName(selectedMonth);
+
+    const filteredIncome = mFiltered(incomeEntries);
+    const allItems = [
+      ...toUnifiedParts(pFiltered),
+      ...toUnifiedIncome(filteredIncome),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+
+    const totalAmt = pFiltered.reduce((a, p) => a + parseFloat(p.price ?? "0"), 0)
+                   + filteredIncome.reduce((a, m) => a + parseFloat(m.amount), 0);
+
+    const noItemsMsg = granularity === "day"   ? tf.noPartsSoldDay
+                     : granularity === "month" ? tf.noPartsSoldMonth(mName, selectedYear)
+                     :                           tf.noPartsSoldYear(selectedYear);
+
     return (
       <div>
-        <AddEntryForm
-          type="income" cats={tf.incomeCats}
-          form={newIncome} setForm={setNewIncome}
-          onAdd={() => addEntry("income")} saving={saving}
-          labels={incomeFormLabels}
-        />
-        {incomeEntries.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-500/5 border border-green-500/20 mb-5">
-            <svg className="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        {/* Add other income toggle */}
+        <div className="mb-5">
+          <button
+            onClick={() => setShowAddIncome(v => !v)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+              showAddIncome
+                ? "bg-teal-500/10 border-teal-500/25 text-teal-400"
+                : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <svg className={`w-4 h-4 transition-transform ${showAddIncome ? "rotate-45" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            <div>
-              <p className="text-sm font-semibold text-green-400">{tf.allTimeTotal}: {fmt(totalAll)}</p>
-              <p className="text-xs text-[var(--text-muted)]">{tf.incomeRecords(incomeEntries.length)}</p>
+            {tf.addIncome}
+          </button>
+          {showAddIncome && (
+            <div className="mt-3">
+              <AddEntryForm
+                type="income" cats={tf.incomeCats}
+                form={newIncome} setForm={setNewIncome}
+                onAdd={() => addEntry("income")} saving={saving}
+                labels={incomeFormLabels}
+              />
             </div>
-          </div>
-        )}
-        {granularity === "day"   && renderDayView(items, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, tf.noIncomeDay, m => deleteEntry(m.id, "income"))}
-        {granularity === "month" && renderMonthView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, "os-m", tf.noIncomeMonth(mName, selectedYear), m => deleteEntry(m.id, "income"))}
-        {granularity === "year"  && renderYearView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-green-400", tf.entry, "os-y", tf.noIncomeYear(selectedYear), m => deleteEntry(m.id, "income"))}
+          )}
+        </div>
+
+        {granularity === "day"   && renderUnifiedDay(allItems, totalAmt, "text-green-400", noItemsMsg)}
+        {granularity === "month" && renderUnifiedMonth(allItems, totalAmt, "text-green-400", "sl-m", noItemsMsg)}
+        {granularity === "year"  && renderUnifiedYear(allItems, totalAmt, "text-green-400", "sl-y", noItemsMsg)}
       </div>
     );
   }
 
-  function renderOtherSpendings() {
-    if (loadingE) return <Spinner label={tf.loadingEntries} />;
-    const items    = mFiltered(expenseEntries);
-    const totalAll = sumM(expenseEntries);
-    const mName    = monthName(selectedMonth);
+  function renderPurchases() {
+    if (loadingV || loadingE) return <Spinner label={tf.loadingVehicles} />;
+    const mName = monthName(selectedMonth);
+
+    const filteredExpenses = mFiltered(expenseEntries);
+    const allItems = [
+      ...toUnifiedVehicles(vFiltered),
+      ...toUnifiedExpenses(filteredExpenses),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+
+    const totalAmt = vFiltered.reduce((a, v) => a + parseFloat(v.purchasePrice ?? "0"), 0)
+                   + filteredExpenses.reduce((a, m) => a + parseFloat(m.amount), 0);
+
+    const noItemsMsg = granularity === "day"   ? tf.noVehiclesDay
+                     : granularity === "month" ? tf.noVehiclesMonth(mName, selectedYear)
+                     :                           tf.noVehiclesYear(selectedYear);
+
     return (
       <div>
-        <AddEntryForm
-          type="expense" cats={tf.expenseCats}
-          form={newExpense} setForm={setNewExpense}
-          onAdd={() => addEntry("expense")} saving={saving}
-          labels={expenseFormLabels}
-        />
-        {expenseEntries.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/5 border border-orange-500/20 mb-5">
-            <svg className="w-5 h-5 text-orange-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75" />
+        {/* Add other expense toggle */}
+        <div className="mb-5">
+          <button
+            onClick={() => setShowAddExpense(v => !v)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+              showAddExpense
+                ? "bg-orange-500/10 border-orange-500/25 text-orange-400"
+                : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <svg className={`w-4 h-4 transition-transform ${showAddExpense ? "rotate-45" : ""}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            <div>
-              <p className="text-sm font-semibold text-orange-400">{tf.allTimeTotal}: {fmt(totalAll)}</p>
-              <p className="text-xs text-[var(--text-muted)]">{tf.expenseRecords(expenseEntries.length)}</p>
+            {tf.addExpense}
+          </button>
+          {showAddExpense && (
+            <div className="mt-3">
+              <AddEntryForm
+                type="expense" cats={tf.expenseCats}
+                form={newExpense} setForm={setNewExpense}
+                onAdd={() => addEntry("expense")} saving={saving}
+                labels={expenseFormLabels}
+              />
             </div>
-          </div>
-        )}
-        {granularity === "day"   && renderDayView(items, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, tf.noExpenseDay, m => deleteEntry(m.id, "expense"))}
-        {granularity === "month" && renderMonthView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, "oe-m", tf.noExpenseMonth(mName, selectedYear), m => deleteEntry(m.id, "expense"))}
-        {granularity === "year"  && renderYearView(items, m => m.date, m => m.id, m => m.description, m => m.category, m => m.amount, sumM, "text-orange-400", tf.expense, "oe-y", tf.noExpenseYear(selectedYear), m => deleteEntry(m.id, "expense"))}
+          )}
+        </div>
+
+        {granularity === "day"   && renderUnifiedDay(allItems, totalAmt, "text-[var(--text-primary)]", noItemsMsg)}
+        {granularity === "month" && renderUnifiedMonth(allItems, totalAmt, "text-[var(--text-primary)]", "pu-m", noItemsMsg)}
+        {granularity === "year"  && renderUnifiedYear(allItems, totalAmt, "text-[var(--text-primary)]", "pu-y", noItemsMsg)}
       </div>
     );
   }
@@ -649,10 +865,8 @@ export default function FinancesPage() {
   // ── Main render ───────────────────────────────────────────────────────────────
 
   const TABS: [MainTab, string][] = [
-    ["sellings",        tf.sellings],
-    ["other-sellings",  tf.otherSellings],
-    ["purchases",       tf.purchases],
-    ["other-spendings", tf.otherSpendings],
+    ["sellings",   tf.sellings],
+    ["purchases",  tf.purchases],
   ];
 
   const GRANS: [Granularity, string][] = [
@@ -691,10 +905,8 @@ export default function FinancesPage() {
 
         {/* Content */}
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          {mainTab === "sellings"        && renderSellings()}
-          {mainTab === "other-sellings"  && renderOtherSellings()}
-          {mainTab === "purchases"       && renderPurchases()}
-          {mainTab === "other-spendings" && renderOtherSpendings()}
+          {mainTab === "sellings"  && renderSellings()}
+          {mainTab === "purchases" && renderPurchases()}
         </div>
 
       </div>

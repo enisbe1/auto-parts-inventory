@@ -17,6 +17,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     return this.sign(user);
   }
+  async changePassword(userId: number, currentPassword: string, newPassword: string) {
+    const user = await this.users.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new UnauthorizedException('Incorrect current password');
+    await this.users.changePassword(userId, newPassword);
+    return { message: 'Password changed successfully' };
+  }
   private sign(user: any) {
     return { access_token: this.jwt.sign({ sub: user.id, email: user.email, role: user.role }) };
   }

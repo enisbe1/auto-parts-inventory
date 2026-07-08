@@ -6,7 +6,7 @@ import { ActivityService } from '../activity/activity.service';
 
 export interface PaginatedResult<T> {
   data: T[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
+  meta: { total: number; page: number; limit: number; totalPages: number; vehicleCount?: number };
 }
 
 @Injectable()
@@ -19,6 +19,7 @@ export class PartsService {
   async findAll(filters: {
     vehicleId?: number;
     categoryId?: number;
+    makeId?: number;
     modelId?: number;
     generationId?: number;
     status?: string;
@@ -29,9 +30,27 @@ export class PartsService {
   }): Promise<PaginatedResult<Part>> {
     const { page = 1, limit = 20, ...rest } = filters;
 
-    // When filtering by model or generation we must JOIN through the vehicle hierarchy —
+    // When filtering by make/model/generation we must JOIN through the vehicle hierarchy —
     // TypeORM's simple where object can't traverse nested relations.
-    if (rest.modelId || rest.generationId) {
+    if (rest.makeId || rest.modelId || rest.generationId) {
+      // ── Helper: apply the same hierarchy WHERE + secondary filters to any QB ──
+      const applyFilters = (qb: ReturnType<typeof this.repo.createQueryBuilder>) => {
+        // Primary hierarchy — most specific wins
+        if (rest.generationId) {
+          qb.where('generation.id = :generationId', { generationId: rest.generationId });
+        } else if (rest.modelId) {
+          qb.where('model.id = :modelId', { modelId: rest.modelId });
+        } else {
+          qb.where('make.id = :makeId', { makeId: rest.makeId });
+        }
+
+        if (rest.vehicleId)  qb.andWhere('part.vehicleId  = :vid',  { vid:  rest.vehicleId });
+        if (rest.categoryId) qb.andWhere('part.categoryId = :cid',  { cid:  rest.categoryId });
+        if (rest.status)     qb.andWhere('part.status     = :st',   { st:   rest.status });
+        if (rest.condition)  qb.andWhere('part.condition  = :cond', { cond: rest.condition });
+        if (rest.search)     qb.andWhere('part.name ILIKE :q',      { q:    `%${rest.search}%` });
+      };
+
       const qb = this.repo.createQueryBuilder('part')
         .leftJoinAndSelect('part.vehicle',           'vehicle')
         .leftJoinAndSelect('vehicle.variant',        'variant')
@@ -39,32 +58,31 @@ export class PartsService {
         .leftJoinAndSelect('generation.model',       'model')
         .leftJoinAndSelect('model.make',             'make')
         .leftJoinAndSelect('part.category',          'category');
+      applyFilters(qb);
 
-      // Primary hierarchy filter — generationId is more specific than modelId
-      if (rest.modelId && rest.generationId) {
-        qb.where('model.id = :modelId AND generation.id = :generationId',
-                 { modelId: rest.modelId, generationId: rest.generationId });
-      } else if (rest.generationId) {
-        qb.where('generation.id = :generationId', { generationId: rest.generationId });
-      } else {
-        qb.where('model.id = :modelId', { modelId: rest.modelId });
-      }
-
-      if (rest.vehicleId)  qb.andWhere('part.vehicleId  = :vid',  { vid:  rest.vehicleId });
-      if (rest.categoryId) qb.andWhere('part.categoryId = :cid',  { cid:  rest.categoryId });
-      if (rest.status)     qb.andWhere('part.status     = :st',   { st:   rest.status });
-      if (rest.condition)  qb.andWhere('part.condition  = :cond', { cond: rest.condition });
-      if (rest.search)     qb.andWhere('part.name ILIKE :q',      { q:    `%${rest.search}%` });
+      // Separate lightweight QB to count distinct vehicles across ALL pages
+      const vcQb = this.repo.createQueryBuilder('part')
+        .leftJoin('part.vehicle',       'vehicle')
+        .leftJoin('vehicle.variant',    'variant')
+        .leftJoin('variant.generation', 'generation')
+        .leftJoin('generation.model',   'model')
+        .leftJoin('model.make',         'make')
+        .select('COUNT(DISTINCT part.vehicleId)', 'cnt');
+      applyFilters(vcQb);
 
       qb.orderBy('part.createdAt', 'DESC')
         .skip((page - 1) * limit)
         .take(limit);
 
-      const [data, total] = await qb.getManyAndCount();
-      return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+      const [[data, total], vcResult] = await Promise.all([
+        qb.getManyAndCount(),
+        vcQb.getRawOne<{ cnt: string }>(),
+      ]);
+      const vehicleCount = parseInt(vcResult?.cnt ?? '0');
+      return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit), vehicleCount } };
     }
 
-    // Default path — no model filter
+    // Default path — no hierarchy filter
     const where: any = {};
     if (rest.vehicleId) where.vehicleId = rest.vehicleId;
     if (rest.categoryId) where.categoryId = rest.categoryId;

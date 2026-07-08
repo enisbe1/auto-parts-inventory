@@ -9,11 +9,12 @@ import Toast from "@/components/Toast";
 import QRLabelModal from "@/components/QRLabelModal";
 import ImportModal from "@/components/ImportModal";
 import SellPartModal from "@/components/SellPartModal";
+import SellFromVehicleModal from "@/components/SellFromVehicleModal";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PaginatedParts {
   data: Part[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
+  meta: { total: number; page: number; limit: number; totalPages: number; vehicleCount?: number };
 }
 
 // ── Shared badge helpers (module scope) ───────────────────────────────────────
@@ -52,11 +53,13 @@ interface PartRowProps {
   statusReserved: string;
   editLabel: string;
   deleteLabel: string;
+  daysListed?: number;
   onToggle: () => void;
   onStatusChange: (newStatus: string) => void;
   onQR: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onClone: () => void;
 }
 
 function PartRow({
@@ -64,7 +67,8 @@ function PartRow({
   conditionLabel,
   statusSold, statusAvailable, statusReserved,
   editLabel, deleteLabel,
-  onToggle, onStatusChange, onQR, onEdit, onDelete,
+  daysListed,
+  onToggle, onStatusChange, onQR, onEdit, onDelete, onClone,
 }: PartRowProps) {
   return (
     <tr className={`hover:bg-white/[0.03] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}>
@@ -72,7 +76,18 @@ function PartRow({
         <input type="checkbox" checked={isSelected} onChange={onToggle}
           className="rounded border-zinc-700 text-blue-600 focus:ring-blue-500/40 bg-[var(--surface-raised)]" />
       </td>
-      <td className="px-5 py-3.5 font-semibold text-[var(--text-primary)]">{p.name}</td>
+      <td className="px-5 py-3.5">
+        <p className="font-semibold text-[var(--text-primary)]">{p.name}</p>
+        {daysListed !== undefined && daysListed >= 30 && p.status === "available" && (
+          <span className={`text-[10px] font-medium mt-0.5 inline-block px-1.5 py-0.5 rounded border ${
+            daysListed >= 90
+              ? "bg-red-500/10 text-red-400 border-red-500/20"
+              : daysListed >= 60
+                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                : "bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)]"
+          }`}>{daysListed}d listed</span>
+        )}
+      </td>
       <td className="px-5 py-3.5 font-mono text-xs text-[var(--text-secondary)]">
         {p.partNumber || <span className="text-[var(--text-muted)]">—</span>}
       </td>
@@ -103,6 +118,12 @@ function PartRow({
           <button onClick={onQR} aria-label="Generate QR label"
             className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] hover:text-[var(--text-primary)] transition-colors">
             <QRIcon />
+          </button>
+          <button onClick={onClone} aria-label={`Clone ${p.name}`} title="Duplicate part"
+            className="w-7 h-7 inline-flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-black/[0.05] dark:hover:bg-white/[0.06] hover:text-blue-400 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+            </svg>
           </button>
           <button onClick={onEdit} aria-label={`Edit ${p.name}`}
             className="text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors">
@@ -175,6 +196,8 @@ function PartsContent() {
   const [sellPart, setSellPart]           = useState<Part | null>(null);
   const [sellLoading, setSellLoading]     = useState(false);
   const [pendingStatus, setPendingStatus] = useState<{ partId: number; newStatus: string } | null>(null);
+  const [sellPartGroup, setSellPartGroup] = useState<Part[] | null>(null);
+  const [groupByPartName, setGroupByPartName] = useState(false);
 
   // ── Abort ref — cancels in-flight requests when a newer one fires ─────────
   const abortRef = useRef<AbortController | null>(null);
@@ -191,10 +214,10 @@ function PartsContent() {
     api.get('/generations', { params: { modelId } }).then(r => { setGenerations(r.data); setGenerationId(''); });
   }, [modelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtersRef = useRef({ search, status, condition, modelId, generationId, groupByVehicle });
+  const filtersRef = useRef({ search, status, condition, makeId, modelId, generationId, groupByVehicle, groupByPartName });
   useEffect(() => {
-    filtersRef.current = { search, status, condition, modelId, generationId, groupByVehicle };
-  }, [search, status, condition, modelId, generationId, groupByVehicle]);
+    filtersRef.current = { search, status, condition, makeId, modelId, generationId, groupByVehicle, groupByPartName };
+  }, [search, status, condition, makeId, modelId, generationId, groupByVehicle, groupByPartName]);
 
   const load = async (
     p: number,
@@ -203,6 +226,7 @@ function PartsContent() {
     overrideModelId?: string,
     overrideGenerationId?: string,
     overrideCondition?: string,
+    overrideMakeId?: string,
   ) => {
     // Cancel any in-flight request to prevent stale data overwriting fresh results
     abortRef.current?.abort();
@@ -211,15 +235,17 @@ function PartsContent() {
 
     const s    = overrideSearch       !== undefined ? overrideSearch       : filtersRef.current.search;
     const st   = overrideStatus       !== undefined ? overrideStatus       : filtersRef.current.status;
+    const mkid = overrideMakeId       !== undefined ? overrideMakeId       : filtersRef.current.makeId;
     const mid  = overrideModelId      !== undefined ? overrideModelId      : filtersRef.current.modelId;
     const gid  = overrideGenerationId !== undefined ? overrideGenerationId : filtersRef.current.generationId;
     const cond = overrideCondition    !== undefined ? overrideCondition    : filtersRef.current.condition;
-    const gbv  = filtersRef.current.groupByVehicle;
-    const limit = gbv && (mid || gid) ? groupLimit : normalLimit;
+    const gbv  = filtersRef.current.groupByVehicle || filtersRef.current.groupByPartName;
+    const limit = gbv && (mkid || mid || gid) ? groupLimit : normalLimit;
 
     const params: Record<string, string | number> = { page: p, limit };
     if (s)    params.search       = s;
     if (st)   params.status       = st;
+    if (mkid) params.makeId       = mkid;
     if (mid)  params.modelId      = mid;
     if (gid)  params.generationId = gid;
     if (cond) params.condition    = cond;
@@ -246,10 +272,11 @@ function PartsContent() {
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setPage(1); load(1); }, [groupByVehicle]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); load(1); }, [groupByVehicle]);     // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); load(1); }, [groupByPartName]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault(); setPage(1); load(1, search, status, modelId, generationId, condition);
+    e.preventDefault(); setPage(1); load(1, search, status, modelId, generationId, condition, makeId);
   };
 
   // ── Status / sell ─────────────────────────────────────────────────────────
@@ -282,6 +309,25 @@ function PartsContent() {
   };
 
   const cancelSell = () => { setSellPart(null); setPendingStatus(null); };
+
+  const handleClone = async (p: Part) => {
+    try {
+      await api.post('/parts', {
+        name: p.name,
+        ...(p.partNumber  ? { partNumber: p.partNumber }   : {}),
+        condition: p.condition,
+        ...(p.price       ? { price: p.price }             : {}),
+        status: 'available',
+        ...(p.notes       ? { notes: p.notes }             : {}),
+        ...(p.vehicleId   ? { vehicleId: p.vehicleId }     : {}),
+        ...(p.categoryId  ? { categoryId: p.categoryId }   : {}),
+      });
+      setToast({ message: `"${p.name}" cloned`, type: 'success' });
+      load(page);
+    } catch {
+      setToast({ message: 'Failed to clone part', type: 'error' });
+    }
+  };
 
   // ── Selection ─────────────────────────────────────────────────────────────
   const toggleOne = (id: number) => setSelected(prev => {
@@ -333,6 +379,7 @@ function PartsContent() {
     const params: Record<string, string | number> = { page: 1, limit: 10000 };
     if (search)       params.search       = search;
     if (status)       params.status       = status;
+    if (makeId)       params.makeId       = makeId;
     if (modelId)      params.modelId      = modelId;
     if (generationId) params.generationId = generationId;
     if (condition)    params.condition    = condition;
@@ -388,14 +435,34 @@ function PartsContent() {
     });
   }, [sortedParts, groupByVehicle]);
 
+  const groupedByPartName = useMemo(() => {
+    if (!groupByPartName) return null;
+    const map = new Map<string, Part[]>();
+    for (const p of sortedParts) {
+      const key = p.name.toLowerCase().trim();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, grp]) => ({
+        name:      grp[0].name,
+        category:  grp[0].category?.name ?? '',
+        parts:     grp,
+        available: grp.filter(p => p.status === 'available').length,
+        reserved:  grp.filter(p => p.status === 'reserved').length,
+        sold:      grp.filter(p => p.status === 'sold').length,
+      }));
+  }, [sortedParts, groupByPartName]);
+
   const modelStats = useMemo(() => {
-    if (!modelId && !generationId) return null;
+    if (!makeId && !modelId && !generationId) return null;
     const avail = parts.filter(p => p.status === "available").length;
     const res   = parts.filter(p => p.status === "reserved").length;
     const sold  = parts.filter(p => p.status === "sold").length;
-    const vehicleIds = new Set(parts.map(p => p.vehicleId).filter(Boolean));
-    return { avail, res, sold, vehicleCount: vehicleIds.size, total: meta?.total ?? parts.length };
-  }, [parts, modelId, generationId, meta]);
+    // vehicleCount comes from the backend (COUNT DISTINCT across all pages)
+    return { avail, res, sold, vehicleCount: meta?.vehicleCount ?? 0, total: meta?.total ?? parts.length };
+  }, [parts, makeId, modelId, generationId, meta]);
 
   const activeMakeName       = makes.find(mk => String(mk.id) === makeId)?.name;
   const activeModelName      = models.find(m => String(m.id) === modelId)?.name;
@@ -408,6 +475,18 @@ function PartsContent() {
       {toast    && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {qrPart   && <QRLabelModal part={qrPart} onClose={() => setQrPart(null)} />}
       {sellPart && <SellPartModal part={sellPart} isLoading={sellLoading} onConfirm={confirmSell} onCancel={cancelSell} />}
+      {sellPartGroup && (
+        <SellFromVehicleModal
+          partName={sellPartGroup[0]?.name ?? ''}
+          parts={sellPartGroup}
+          isLoading={sellLoading}
+          onConfirm={async (partId, soldPrice) => {
+            await applyStatusUpdate(partId, 'sold', soldPrice);
+            setSellPartGroup(null);
+          }}
+          onClose={() => setSellPartGroup(null)}
+        />
+      )}
       {showImport && (
         <ImportModal onClose={() => setShowImport(false)}
           onSuccess={n => { setShowImport(false); setToast({ message: `${n} parts imported successfully`, type: "success" }); load(1); }} />
@@ -469,20 +548,20 @@ function PartsContent() {
           )}
         </div>
 
-        <select value={makeId} onChange={e => { const v = e.target.value; setMakeId(v); if (!v) { setModelId(''); setGenerationId(''); setPage(1); load(1, search, status, '', '', condition); } }} className={sel}>
+        <select value={makeId} onChange={e => { const v = e.target.value; setMakeId(v); setModelId(''); setGenerationId(''); setPage(1); load(1, search, status, '', '', condition, v); }} className={sel}>
           <option value="">{t.parts.allMakes}</option>
           {makes.map(mk => <option key={mk.id} value={String(mk.id)}>{mk.name}</option>)}
         </select>
 
         {makeId && (
-          <select value={modelId} onChange={e => { const v = e.target.value; setModelId(v); setGenerationId(''); setPage(1); load(1, search, status, v, '', condition); }} className={sel}>
+          <select value={modelId} onChange={e => { const v = e.target.value; setModelId(v); setGenerationId(''); setPage(1); load(1, search, status, v, '', condition, makeId); }} className={sel}>
             <option value="">{t.parts.allModels}</option>
             {models.map(m => <option key={m.id} value={String(m.id)}>{m.name}</option>)}
           </select>
         )}
 
         {modelId && generations.length > 0 && (
-          <select value={generationId} onChange={e => { const v = e.target.value; setGenerationId(v); setPage(1); load(1, search, status, modelId, v, condition); }} className={sel}>
+          <select value={generationId} onChange={e => { const v = e.target.value; setGenerationId(v); setPage(1); load(1, search, status, modelId, v, condition, makeId); }} className={sel}>
             <option value="">{t.parts.allGenerations}</option>
             {generations.map(g => (
               <option key={g.id} value={String(g.id)}>
@@ -493,14 +572,14 @@ function PartsContent() {
           </select>
         )}
 
-        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); load(1, search, e.target.value, modelId, generationId, condition); }} className={sel}>
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); load(1, search, e.target.value, modelId, generationId, condition, makeId); }} className={sel}>
           <option value="">{t.common.allStatuses}</option>
           <option value="available">{t.status.available}</option>
           <option value="reserved">{t.status.reserved}</option>
           <option value="sold">{t.status.sold}</option>
         </select>
 
-        <select value={condition} onChange={e => { setCondition(e.target.value); setPage(1); load(1, search, status, modelId, generationId, e.target.value); }} className={sel}>
+        <select value={condition} onChange={e => { setCondition(e.target.value); setPage(1); load(1, search, status, modelId, generationId, e.target.value, makeId); }} className={sel}>
           <option value="">{t.parts.allConditions}</option>
           <option value="good">{t.condition.good}</option>
           <option value="fair">{t.condition.fair}</option>
@@ -514,9 +593,9 @@ function PartsContent() {
           <option value="name_asc">{t.parts.sortNameAz}</option>
         </select>
 
-        {(modelId || generationId) && (
+        {(makeId || modelId || generationId) && (
           <button type="button"
-            onClick={() => { setMakeId(''); setModelId(''); setGenerationId(''); setGroupByVehicle(false); setPage(1); load(1, search, status, '', '', condition); }}
+            onClick={() => { setMakeId(''); setModelId(''); setGenerationId(''); setGroupByVehicle(false); setPage(1); load(1, search, status, '', '', condition, ''); }}
             className="inline-flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-2.5 rounded-xl text-xs font-medium hover:bg-blue-500/15 transition-colors">
             {[activeMakeName, activeModelName, activeGenerationName].filter(Boolean).join(' · ')}
             <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -531,7 +610,7 @@ function PartsContent() {
       </form>
 
       {/* Model summary card */}
-      {(modelId || generationId) && modelStats && (
+      {(makeId || modelId || generationId) && modelStats && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-4 mb-4">
           <div className="flex flex-wrap items-center gap-4 justify-between">
             <div>
@@ -561,17 +640,30 @@ function PartsContent() {
                 <span className="text-[var(--text-muted)]">{t.status.sold}</span>
               </span>
             </div>
-            <button type="button" onClick={() => setGroupByVehicle(v => !v)}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                groupByVehicle
-                  ? "bg-blue-500/15 border-blue-500/30 text-blue-400"
-                  : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-              </svg>
-              {t.parts.groupByVehicle}
-            </button>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => { setGroupByVehicle(v => !v); setGroupByPartName(false); }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium border transition-colors ${
+                  groupByVehicle
+                    ? "bg-blue-500/15 border-blue-500/30 text-blue-400"
+                    : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+                {t.parts.groupByVehicle}
+              </button>
+              <button type="button" onClick={() => { setGroupByPartName(v => !v); setGroupByVehicle(false); }}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium border transition-colors ${
+                  groupByPartName
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                    : "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                </svg>
+                {t.parts.byPartType}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -604,8 +696,80 @@ function PartsContent() {
         </div>
       )}
 
-      {/* GROUP BY VEHICLE view */}
-      {groupByVehicle && groupedByVehicle ? (
+      {/* BY PART TYPE view */}
+      {groupByPartName && groupedByPartName && (makeId || modelId || generationId) ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden shadow-xl shadow-black/20">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.partName}</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.parts.category}</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-emerald-400 uppercase tracking-wider">{t.status.available}</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-amber-400 uppercase tracking-wider">{t.status.reserved}</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">{t.status.sold}</th>
+                <th className="px-5 py-3 text-center text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Total</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{t.common.actions}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-subtle)]">
+              {loading ? (
+                <SkeletonRows cols={7} />
+              ) : !groupedByPartName.length ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-[var(--text-muted)]">{t.parts.noParts}</td>
+                </tr>
+              ) : groupedByPartName.map(({ name, category, parts: grpParts, available, reserved, sold }) => (
+                <tr key={name} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-5 py-3.5">
+                    <p className="font-semibold text-[var(--text-primary)]">{name}</p>
+                    {grpParts[0]?.partNumber && (
+                      <p className="text-xs font-mono text-[var(--text-muted)] mt-0.5">#{grpParts[0].partNumber}</p>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-[var(--text-secondary)]">
+                    {category || <span className="text-[var(--text-muted)]">—</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    {available > 0
+                      ? <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">{available}</span>
+                      : <span className="text-[var(--text-muted)] text-xs">0</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    {reserved > 0
+                      ? <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">{reserved}</span>
+                      : <span className="text-[var(--text-muted)] text-xs">0</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    {sold > 0
+                      ? <span className="inline-flex items-center justify-center min-w-[1.75rem] px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-500/15 text-[var(--text-muted)] border border-zinc-500/20">{sold}</span>
+                      : <span className="text-[var(--text-muted)] text-xs">0</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">{grpParts.length}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <button
+                      disabled={available === 0}
+                      onClick={() => setSellPartGroup(grpParts)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        available > 0
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          : 'bg-[var(--surface-raised)] text-[var(--text-muted)] border border-[var(--border)] cursor-not-allowed opacity-40'
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75" />
+                      </svg>
+                      {t.sell.title}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : /* GROUP BY VEHICLE view */
+      groupByVehicle && groupedByVehicle ? (
         <div className="space-y-4">
           {loading && groupedByVehicle.length === 0 && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-12 flex justify-center">
@@ -690,11 +854,13 @@ function PartsContent() {
                         conditionLabel={(t.condition as Record<string, string>)[p.condition] ?? p.condition}
                         statusSold={t.status.sold} statusAvailable={t.status.available} statusReserved={t.status.reserved}
                         editLabel={t.common.edit} deleteLabel={t.common.delete}
+                        daysListed={p.createdAt ? Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000) : undefined}
                         onToggle={() => toggleOne(p.id)}
                         onStatusChange={ns => handleStatusChange(p, ns)}
                         onQR={() => setQrPart(p)}
                         onEdit={() => router.push(`/parts/${p.id}/edit`)}
                         onDelete={() => setToDelete(p)}
+                        onClone={() => handleClone(p)}
                       />
                     ))}
                   </tbody>
@@ -737,11 +903,13 @@ function PartsContent() {
                   conditionLabel={(t.condition as Record<string, string>)[p.condition] ?? p.condition}
                   statusSold={t.status.sold} statusAvailable={t.status.available} statusReserved={t.status.reserved}
                   editLabel={t.common.edit} deleteLabel={t.common.delete}
+                  daysListed={p.createdAt ? Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86400000) : undefined}
                   onToggle={() => toggleOne(p.id)}
                   onStatusChange={ns => handleStatusChange(p, ns)}
                   onQR={() => setQrPart(p)}
                   onEdit={() => router.push(`/parts/${p.id}/edit`)}
                   onDelete={() => setToDelete(p)}
+                  onClone={() => handleClone(p)}
                 />
               ))}
             </tbody>

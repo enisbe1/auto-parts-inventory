@@ -40,6 +40,7 @@ export class PartsController {
   findAll(
     @Query('vehicleId')    vehicleId?: string,
     @Query('categoryId')   categoryId?: string,
+    @Query('makeId')       makeId?: string,
     @Query('modelId')      modelId?: string,
     @Query('generationId') generationId?: string,
     @Query('status')       status?: string,
@@ -51,6 +52,7 @@ export class PartsController {
     return this.svc.findAll({
       vehicleId:    vehicleId    ? +vehicleId    : undefined,
       categoryId:   categoryId   ? +categoryId   : undefined,
+      makeId:       makeId       ? +makeId       : undefined,
       modelId:      modelId      ? +modelId      : undefined,
       generationId: generationId ? +generationId : undefined,
       status,

@@ -77,4 +77,37 @@ export class VehiclesService {
   async remove(id: number) {
     await this.repo.delete(id);
   }
+
+  async getRoiStats(): Promise<Array<{
+    id: number;
+    purchasePrice: number;
+    soldRevenue: number;
+    availableValue: number;
+    partsCount: number;
+  }>> {
+    const rows = await this.repo
+      .createQueryBuilder('v')
+      .leftJoin('v.parts', 'p')
+      .select('v.id', 'id')
+      .addSelect('COALESCE(v.purchasePrice, 0)', 'purchasePrice')
+      .addSelect(
+        "COALESCE(SUM(CASE WHEN p.status = 'sold'      THEN CAST(p.price AS DECIMAL) ELSE 0 END), 0)",
+        'soldRevenue',
+      )
+      .addSelect(
+        "COALESCE(SUM(CASE WHEN p.status = 'available' THEN CAST(p.price AS DECIMAL) ELSE 0 END), 0)",
+        'availableValue',
+      )
+      .addSelect('COUNT(p.id)', 'partsCount')
+      .groupBy('v.id, v.purchasePrice')
+      .getRawMany();
+
+    return rows.map(r => ({
+      id:             +r.id,
+      purchasePrice:  parseFloat(r.purchasePrice)  || 0,
+      soldRevenue:    parseFloat(r.soldRevenue)    || 0,
+      availableValue: parseFloat(r.availableValue) || 0,
+      partsCount:     +r.partsCount,
+    }));
+  }
 }
